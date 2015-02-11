@@ -2,7 +2,8 @@
 #include<stdio.h>
 %}
 
-	%token ID INT EOS VAR STRING_LITERAL BASE_OPERATOR MULT_OPERATOR START_SCRIPT END_SCRIPT WRITE
+	%token ID INT VAR STRING_LITERAL BASE_OPERATOR MULT_OPERATOR WRITE
+	%token END_STATEMENT START_SCRIPT END_SCRIPT NEWLINE
 	%start prog 
 
 %%
@@ -12,15 +13,20 @@
 				|	errors error
 				;
 
-	script: START_SCRIPT EOS stmts END_SCRIPT 
+	script: START_SCRIPT NEWLINE stmts END_SCRIPT 
 				;
 
 	stmts: /*empty*/
-			 | stmts stmt EOS
+			 | stmts meta_stmt NEWLINE
+			 | stmts meta_stmt END_STATEMENT NEWLINE
 			 ;
 
-	stmt: /*empty*/
-			| VAR ID
+	meta_stmt: /*empty*/
+					 | stmt
+					 | meta_stmt END_STATEMENT stmt
+					 ;
+
+	stmt: VAR ID
 			| VAR ID '=' expr
 			| ID '=' expr
 			| WRITE '(' args ')'
