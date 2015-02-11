@@ -7,3 +7,8 @@ lex.yy.c: compiler.l
 clean:
 	rm -f lex.yy.c y.tab.c y.tab.h y.dot y.output
 
+debug: y.tab.c lex.yy.c
+	gcc -DDEBUG=1 y.tab.c lex.yy.c -o parser -lfl
+test:
+	chmod +x ./tests/test_all
+	./tests/test_all release

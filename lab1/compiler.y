@@ -3,10 +3,18 @@
 %}
 
 	%token ID INT EOS VAR STRING_LITERAL BASE_OPERATOR MULT_OPERATOR START_SCRIPT END_SCRIPT WRITE
-	%start script 
+	%start prog 
 
 %%
-	script: START_SCRIPT stmts END_SCRIPT EOS;
+	prog: errors script errors
+	
+	errors: /*empty*/
+				|	errors error
+				;
+
+	script: START_SCRIPT EOS stmts END_SCRIPT 
+				;
+
 	stmts: /*empty*/
 			 | stmts stmt EOS
 			 ;
@@ -41,6 +49,12 @@
 		
 %%
 
+#ifdef DEBUG
+#   define YY_DEBUG 1
+#else
+#   define YY_DEBUG 0 
+#endif
+
 FILE *yyin;
 int yylineno;
 yyerror(char *s)
@@ -50,7 +64,7 @@ yyerror(char *s)
 
 main(int argc, char *argv[])
 {
-	//yydebug = 1;
+	yydebug = YY_DEBUG;
 	if (argc == 2) {
 		FILE *file;
 
