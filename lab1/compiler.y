@@ -4,16 +4,15 @@
 
 	%token ID INT VAR STRING_LITERAL BASE_OPERATOR MULT_OPERATOR WRITE
 	%token END_STATEMENT START_SCRIPT END_SCRIPT NEWLINE
-	%start prog 
+	%start script 
 
 %%
-	prog: errors script errors
-	
-	errors: /*empty*/
-				|	errors error
+	script: errors START_SCRIPT NEWLINE stmts END_SCRIPT errors
 				;
 
-	script: START_SCRIPT NEWLINE stmts END_SCRIPT NEWLINE
+	errors: /*empty*/
+				|	errors error
+				|	errors NEWLINE 
 				;
 
 	stmts: /*empty*/
