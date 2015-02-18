@@ -6,3 +6,5 @@ y.output
 *.swp
 .nfs*
 tests
+y.vcg
+parser
