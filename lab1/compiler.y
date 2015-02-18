@@ -13,7 +13,7 @@
 				|	errors error
 				;
 
-	script: START_SCRIPT NEWLINE stmts END_SCRIPT 
+	script: START_SCRIPT NEWLINE stmts END_SCRIPT NEWLINE
 				;
 
 	stmts: /*empty*/
