@@ -13,7 +13,6 @@
 "\n"									{yylineno++;return NEWLINE;}
 ";"										{return END_STATEMENT;}
 \"[^\n]*\"						{return STRING_LITERAL;}
-\".*\n.*\"						{return MULTI_LINE_STRING;}
 "="										{return '=';}
 "("										{return '(';}
 ")"										{return ')';}
@@ -21,6 +20,9 @@
 [\+-]									{return BASE_OPERATOR;}
 [\*/]									{return MULT_OPERATOR;}
 [ \t]									{}						//discard
+
+\"[^\"]*\n[^\"]*\"						{return MULTI_LINE_STRING;}
+document[^\n]+write				{return BAD_WRITE;}
 
 %%
 

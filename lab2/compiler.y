@@ -5,7 +5,7 @@ void yyerror(char*);
 %}
 
 	%token ID INT VAR STRING_LITERAL BASE_OPERATOR MULT_OPERATOR WRITE
-	%token MULTI_LINE_STRING
+	%token MULTI_LINE_STRING BAD_WRITE
 	%token END_STATEMENT START_SCRIPT END_SCRIPT NEWLINE
 	%start script 
 
@@ -23,8 +23,8 @@ void yyerror(char*);
 			 | stmts meta_stmt END_STATEMENT NEWLINE
 			 ;
 
-	meta_stmt: /*empty*/
-					 | stmt
+	meta_stmt:  /*empty*/
+			 		 |stmt
 					 | meta_stmt END_STATEMENT stmt
 					 ;
 
