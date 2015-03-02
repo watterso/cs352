@@ -13,6 +13,7 @@
 "\n"									{yylineno++;return NEWLINE;}
 ";"										{return END_STATEMENT;}
 \"[^\n]*\"						{return STRING_LITERAL;}
+\".*\n.*\"						{return MULTI_LINE_STRING;}
 "="										{return '=';}
 "("										{return '(';}
 ")"										{return ')';}
