@@ -3,7 +3,11 @@
 int yylex();
 void yyerror(char*);
 #include<stdio.h>
-
+SymbolTable sym;
+const char * MY_UNDEFINED = "undefined";
+#define MAX_OBJS 50
+SymbolTable objs[MAX_OBJS];
+int next_obj = 0;
 %}
 
 	%token ID VAR BASE_OPERATOR MULT_OPERATOR WRITE
@@ -14,6 +18,7 @@ void yyerror(char*);
 	
 	%token INT
 	%token STRING_LITERAL
+	%token OBJ
 
 %%
 	script: errors START_SCRIPT NEWLINE stmts END_SCRIPT errors
@@ -34,9 +39,43 @@ void yyerror(char*);
 					 | meta_stmt END_STATEMENT stmt
 					 ;
 
-	stmt: VAR ID
-			| VAR ID '=' expr
-			| ID '=' expr
+	stmt: VAR ID					{ sym[$2.ptr]; sym[$2.ptr].defined = 0;}
+			| VAR ID '=' meta_expr {
+							sym[$2.ptr]; 
+							sym[$2.ptr].defined = 1;
+							sym[$2.ptr].which_val = $4.which_val;
+							//Screw conditionals, lets take data we don't even need!
+							sym[$2.ptr].num = $4.num;
+							sym[$2.ptr].ptr = $4.ptr;
+
+							#ifdef DEBUG
+							//printf("%d: (%d,%s)\n", $4.which_val, $4.num, $4.ptr);
+							#endif
+
+							#ifdef DEBUG
+							if(sym[$2.ptr].which_val==INT){
+								printf("Declared %s = %d\n",$2.ptr,sym[$2.ptr].num);
+							}else{
+								printf("Declared %s = %s\n",$2.ptr,sym[$2.ptr].ptr);
+							}
+							#endif
+				}
+			| ID '=' expr {
+							SymbolTable::iterator it;
+							it = sym.find($1.ptr);
+							if(it != sym.end()){
+								sym[$1.ptr].defined = 1;
+								sym[$1.ptr].which_val = $3.which_val;
+								//Screw conditionals, lets take data we don't even need!
+								sym[$1.ptr].num = $3.num;
+								sym[$1.ptr].ptr = $3.ptr;
+							}else{
+								printf("Line %d, type violation\n", yylval.lineno);
+								#ifdef DEBUG
+								printf("\tvar not declared\n");
+								#endif
+							}
+				}
 			| WRITE '(' args ')'
 			;
 
@@ -44,75 +83,204 @@ void yyerror(char*);
 			| args ',' expr {
 						if($3.which_val == INT){
 							printf("%d",$3.num);
-						}else{
+						}else if($3.which_val == STRING_LITERAL){
 							if(strncmp("<br />", $3.ptr, strlen($3.ptr))==0){
 								printf("\n");	
 							}else{
 								printf("%s",$3.ptr);
 							}
+						}else if($3.which_val == 0){
+							printf("%s", MY_UNDEFINED);
 						}
 				}
 			| expr	{
 						if($1.which_val == INT){
 							printf("%d",$1.num);
-						}else{
+						}else if($1.which_val == STRING_LITERAL){
 							if(strncmp("<br />", $1.ptr, strlen($1.ptr))==0){
 								printf("\n");	
 							}else{
 								printf("%s",$1.ptr);
 							}
+						}else if($1.which_val == 0){
+							printf("%s", MY_UNDEFINED);
 						}
 				}
 			;
 
-	mult_expr: operand
-					 | mult_expr '*' operand { 
-					 					if(yylval.which_val == INT){
-											$$.num = $1.num * $3.num; 
-										}else{
-											printf("Line %d, type violation\n", yylval.lineno);
-										}
-									}
-					 | mult_expr '/' operand { 
-					 					if(yylval.which_val == INT){
-											$$.num = $1.num / $3.num; 
-										}else{
-											printf("Line %d, type violation\n", yylval.lineno);
-										}
-									}
+	maybe_newline: /*empty*/
+							 | NEWLINE
+							 ;
+
+	meta_expr: expr
+					 | obj_expr
 					 ;
+	
+	expr: add_expr
+			;
+
+	obj_expr: '{' '}'					{$$.which_val = OBJ; $$.num = next_obj++;}
+					| '{' maybe_newline fields '}'	{$$.which_val = OBJ; $$.num = next_obj++;}
+					;
+	
+	fields: field maybe_newline
+				| fields ',' field maybe_newline
+				;
+
+	field: ID ':' expr {
+									SymbolTable obj_sym = objs[next_obj];	
+									obj_sym[$1.ptr];
+									obj_sym[$1.ptr].defined = 1;
+									obj_sym[$1.ptr].which_val = $3.which_val;
+									//Screw conditionals, lets take data we don't even need!
+									obj_sym[$1.ptr].num = $3.num;
+									obj_sym[$1.ptr].ptr = $3.ptr;
+
+								}
+				;
 
 	add_expr: mult_expr
 					| add_expr '+' mult_expr { 
-					 					if(yylval.which_val == INT){
+					 					if($1.which_val == INT && $3.which_val == INT){
+											#ifdef DEBUG
+											printf("add: %d + %d = %d\n", $1.num,$3.num,$1.num+$3.num);
+											#endif
+											$$.which_val = INT;
 											$$.num = $1.num + $3.num; 
-										}else{
+										}else if($1.which_val == STRING_LITERAL && $3.which_val == STRING_LITERAL){
 											//int len = strlen($1)+strlen($3);
 											//TODO CONCAT
+										}else if(($1.which_val == INT && $3.which_val == STRING_LITERAL) || ($1.which_val == STRING_LITERAL && $3.which_val == INT)){
+											printf("Line %d, type violation\n", yylval.lineno);
+											$$.which_val = 0;
+											$$.num = 0;
+											#ifdef DEBUG
+											printf("\tadd mismatched\n");
+											#endif
+										}else{
+											//undefined
+											$$.which_val = 0;
+											$$.num = 0;
 										}
 									}
 					| add_expr '-' mult_expr { 
-					 					if(yylval.which_val == INT){
+					 					if($1.which_val == INT && $3.which_val == INT){
+											#ifdef DEBUG
+											printf("subtract: %d - %d = %d\n", $1.num,$3.num,$1.num-$3.num);
+											#endif
 											$$.num = $1.num - $3.num; 
-										}else{
+											$$.which_val = INT;
+										}else if(($1.which_val == INT && $3.which_val == STRING_LITERAL) || ($1.which_val == STRING_LITERAL && $3.which_val == INT)){
 											printf("Line %d, type violation\n", yylval.lineno);
+											#ifdef DEBUG
+											printf("\tsubtract mismatched\n");
+											#endif
+										}else if($1.which_val == $3.which_val && $3.which_val == STRING_LITERAL){
+											printf("Line %d, type violation\n", yylval.lineno);
+											#ifdef DEBUG
+											printf("\tsubtract strings\n");
+											#endif
+										}else{
+											//undefined
+											$$.which_val = 0;
+											$$.num = 0;
 										}
 									}
 					;
 
-	expr: add_expr
-			;
+	mult_expr: operand
+					 | mult_expr '*' operand { 
+					 					if($1.which_val == INT && $3.which_val == INT){
+											#ifdef DEBUG
+											printf("multiply: %d * %d = %d\n", $1.num,$3.num,$1.num*$3.num);
+											#endif
+											$$.num = $1.num * $3.num; 
+										}else if(($1.which_val == INT && $3.which_val == STRING_LITERAL) || ($1.which_val == STRING_LITERAL && $3.which_val == INT)){
+											printf("Line %d, type violation\n", yylval.lineno);
+											#ifdef DEBUG
+											printf("\tmultiply mismatched\n");
+											#endif
+										}else if($1.which_val == $3.which_val && $3.which_val == STRING_LITERAL){
+											printf("Line %d, type violation\n", yylval.lineno);
+											#ifdef DEBUG
+											printf("\tmultiply strings\n");
+											#endif
+										}else{
+											//undefined
+											$$.which_val = 0;
+											$$.num = 0;
+										}
+									}
+					 | mult_expr '/' operand { 
+											#ifdef DEBUG
+											printf("divide: %d / %d = %d\n", $1.num,$3.num,$1.num/$3.num);
+											#endif
+					 					if($1.which_val == INT && $3.which_val == INT){
+											#ifdef DEBUG
+											printf("divide: %d / %d = %d\n", $1.num,$3.num,$1.num/$3.num);
+											#endif
+											$$.num = $1.num / $3.num; 
+										}else if(($1.which_val == INT && $3.which_val == STRING_LITERAL) || ($1.which_val == STRING_LITERAL && $3.which_val == INT)){
+											printf("Line %d, type violation\n", yylval.lineno);
+											#ifdef DEBUG
+											printf("%d: (%d,%s)\n", $1.which_val, $1.num, $1.ptr);
+											printf("%d: (%d,%s)\n", $3.which_val, $3.num, $3.ptr);
+											printf("\tdivide mismatched\n");
+											#endif
+										}else if($1.which_val == $3.which_val && $3.which_val == STRING_LITERAL){
+											printf("Line %d, type violation\n", yylval.lineno);
+											#ifdef DEBUG
+											printf("\tdivide strings\n");
+											#endif
+										}else{
+											//undefined
+											$$.which_val = 0;
+											$$.num = 0;
+										}
 
-	operand: ID /*TODO return val of id*/
+									}
+					 ;
+
+
+	operand: ID		{
+							SymbolTable::iterator it;
+							it = sym.find($1.ptr);
+							if(it != sym.end() && it->second.defined==1){
+								$$.which_val = sym[$1.ptr].which_val;
+								$$.num = sym[$1.ptr].num;
+								$$.ptr = sym[$1.ptr].ptr;
+							}else if(it != sym.end()){
+								printf("Line %d, %s has no value\n", yylval.lineno, $1.ptr);
+								#ifdef DEBUG
+								printf("\trender ID\n");
+								#endif
+								$$.which_val = 0;
+								$$.num = 0;
+							}else{
+								printf("Line %d, type violation\n", yylval.lineno);
+								#ifdef DEBUG
+								printf("\trender ID\n");
+								#endif
+								$$.which_val = 0;
+								$$.num = 0;
+							}
+							#ifdef DEBUG
+							if(it != sym.end()){
+							  printf("%s = [%d](%d,%s)\n",$1.ptr,sym[$1.ptr].defined,sym[$1.ptr].num,sym[$1.ptr].ptr);
+							}else{
+							  printf("Variable %s is undefined!\n",$1.ptr);
+							}
+							#endif
+						}
 				 | INT
 				 | STRING_LITERAL
-				 | '(' add_expr ')'
+				 | '(' add_expr ')' {$$.which_val = $2.which_val; $$.num = $2.num; $$.ptr = $2.ptr;}
 				 ;
 		
 %%
 
 #ifdef DEBUG
-#   define YY_DEBUG 1
+#   define YY_DEBUG 0
 #else
 #   define YY_DEBUG 0 
 #endif
