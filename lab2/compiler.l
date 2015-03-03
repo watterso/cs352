@@ -25,6 +25,7 @@
 "{"										{return '{';}
 "}"										{return '}';}
 ":"										{return ':';}
+"."										{return '.';}
 [ \t]									{}						//discard
 
 \"[^\"]*\n[^\"]*\"						{return MULTI_LINE_STRING;}

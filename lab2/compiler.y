@@ -77,6 +77,22 @@ int next_obj = 0;
 							}
 				}
 			| WRITE '(' args ')'
+			| ID '.' ID '=' expr {
+							SymbolTable::iterator it;
+							it = sym.find($1.ptr);
+							if(it != sym.end() && sym[$1.ptr].which_val == OBJ){
+								SymbolTable obj_sym = objs[sym[$1.ptr].num];
+								obj_sym[$3.ptr].defined = $5.which_val == 0 && $5.num == 0 ? 0 :1;
+								obj_sym[$3.ptr].which_val = $5.which_val;
+								obj_sym[$3.ptr].num = $5.num;
+								obj_sym[$3.ptr].ptr = $5.ptr;
+							}else{
+								printf("Line %d, type violation\n", yylval.lineno);
+								#ifdef DEBUG
+								printf("\tobj not declared\n");
+								#endif
+							}
+						}
 			;
 
 	args: /*empty*/
@@ -275,6 +291,47 @@ int next_obj = 0;
 				 | INT
 				 | STRING_LITERAL
 				 | '(' add_expr ')' {$$.which_val = $2.which_val; $$.num = $2.num; $$.ptr = $2.ptr;}
+				 | ID '.' ID {
+							SymbolTable::iterator it;
+							it = sym.find($1.ptr);
+							if(it != sym.end() && it->second.defined==1 && it->second.which_val == OBJ){
+								SymbolTable obj_sym = objs[sym[$1.ptr].num];
+								it = obj_sym.find($3.ptr);
+								if(it != sym.end() && it->second.defined==1){
+									$$.which_val = obj_sym[$3.ptr].which_val;
+									$$.num = obj_sym[$3.ptr].num;
+									$$.ptr = obj_sym[$3.ptr].ptr;
+								}else if(it != sym.end()){
+									printf("Line %d, %s has no value\n", yylval.lineno, $1.ptr);
+									#ifdef DEBUG
+									printf("\trender ID\n");
+									#endif
+									$$.which_val = 0;
+									$$.num = 0;
+								}else{
+									printf("Line %d, type violation\n", yylval.lineno);
+									#ifdef DEBUG
+									printf("\trender ID\n");
+									#endif
+									$$.which_val = 0;
+									$$.num = 0;
+								}
+							}else if(it != sym.end()){
+								printf("Line %d, %s has no value\n", yylval.lineno, $1.ptr);
+								#ifdef DEBUG
+								printf("\trender ID\n");
+								#endif
+								$$.which_val = 0;
+								$$.num = 0;
+							}else{
+								printf("Line %d, type violation\n", yylval.lineno);
+								#ifdef DEBUG
+								printf("\trender ID\n");
+								#endif
+								$$.which_val = 0;
+								$$.num = 0;
+							}
+						}
 				 ;
 		
 %%
