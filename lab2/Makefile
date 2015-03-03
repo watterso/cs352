@@ -1,5 +1,5 @@
 all: y.tab.c lex.yy.c
-	g++ y.tab.c lex.yy.c -o parser -lfl
+	g++ y.tab.c lex.yy.c -o parser -lfl -Wno-write-strings
 mac: y.tab.c lex.yy.c
 	g++ y.tab.c lex.yy.c -o parser -ll
 
