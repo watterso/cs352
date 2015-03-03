@@ -4,7 +4,7 @@ mac: y.tab.c lex.yy.c
 	g++ y.tab.c lex.yy.c -o parser -ll
 
 y.tab.c: compiler.y
-	yacc -y -d -g -t compiler.y
+	yacc --yacc -dv -g -t compiler.y
 lex.yy.c: compiler.l
 	lex compiler.l
 clean:
