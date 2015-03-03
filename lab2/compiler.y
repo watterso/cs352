@@ -49,7 +49,7 @@ int next_obj = 0;
 							sym[$2.ptr].ptr = $4.ptr;
 
 							#ifdef DEBUG
-							//printf("%d: (%d,%s)\n", $4.which_val, $4.num, $4.ptr);
+							printf("%d: (%d,%s)\n", $4.which_val, $4.num, $4.ptr);
 							#endif
 
 							#ifdef DEBUG
@@ -86,6 +86,14 @@ int next_obj = 0;
 								obj_sym[$3.ptr].which_val = $5.which_val;
 								obj_sym[$3.ptr].num = $5.num;
 								obj_sym[$3.ptr].ptr = $5.ptr;
+								objs[sym[$1.ptr].num] = obj_sym;
+								#ifdef DEBUG
+								printf("%d: (%d,%s) ? %d\n", $5.which_val, $5.num, $5.ptr, $5.which_val == 0 && $5.num == 0 ? 0 :1);
+								for(SymbolTable::iterator it1 = obj_sym.begin(); it1 != obj_sym.end(); ++it1) {
+								                      printf("%s, ",it1->first);
+																			                      }
+																														printf(" ------END\n");
+								#endif
 							}else{
 								printf("Line %d, type violation\n", yylval.lineno);
 								#ifdef DEBUG
@@ -107,6 +115,12 @@ int next_obj = 0;
 							}
 						}else if($3.which_val == 0){
 							printf("%s", MY_UNDEFINED);
+						}else if($3.which_val == OBJ){
+							printf("Line %d, type violation\n", yylval.lineno);
+							#ifdef DEBUG
+							printf("\tcan't print objs\n");
+							#endif
+							printf("%s", MY_UNDEFINED);
 						}
 				}
 			| expr	{
@@ -119,6 +133,12 @@ int next_obj = 0;
 								printf("%s",$1.ptr);
 							}
 						}else if($1.which_val == 0){
+							printf("%s", MY_UNDEFINED);
+						}else if($1.which_val == OBJ){
+							printf("Line %d, type violation\n", yylval.lineno);
+							#ifdef DEBUG
+							printf("\tcan't print objs\n");
+							#endif
 							printf("%s", MY_UNDEFINED);
 						}
 				}
@@ -164,8 +184,15 @@ int next_obj = 0;
 											$$.which_val = INT;
 											$$.num = $1.num + $3.num; 
 										}else if($1.which_val == STRING_LITERAL && $3.which_val == STRING_LITERAL){
-											//int len = strlen($1)+strlen($3);
-											//TODO CONCAT
+											int len1 = strlen($1.ptr);
+											int len2 = strlen($3.ptr);
+											int len = len1+len2;
+											char* catted = (char *)malloc(len+1);
+											strncpy(catted, $1.ptr, len1);
+											strncpy(catted + len1, $3.ptr, len2);
+											catted[len1+len2] = '\0';
+											$$.which_val = STRING_LITERAL;
+											$$.ptr = catted;
 										}else if(($1.which_val == INT && $3.which_val == STRING_LITERAL) || ($1.which_val == STRING_LITERAL && $3.which_val == INT)){
 											printf("Line %d, type violation\n", yylval.lineno);
 											$$.which_val = 0;
@@ -258,7 +285,7 @@ int next_obj = 0;
 					 ;
 
 
-	operand: ID		{
+	operand: ID {
 							SymbolTable::iterator it;
 							it = sym.find($1.ptr);
 							if(it != sym.end() && it->second.defined==1){
@@ -297,6 +324,13 @@ int next_obj = 0;
 							if(it != sym.end() && it->second.defined==1 && it->second.which_val == OBJ){
 								SymbolTable obj_sym = objs[sym[$1.ptr].num];
 								it = obj_sym.find($3.ptr);
+									#ifdef DEBUG
+									printf("sub: %d  %s\n",sym[$1.ptr].num,$3.ptr);
+									for(SymbolTable::iterator it1 = obj_sym.begin(); it1 != obj_sym.end(); ++it1) {
+										  printf("%s, ",it1->first);
+											}
+
+									#endif
 								if(it != sym.end() && it->second.defined==1){
 									$$.which_val = obj_sym[$3.ptr].which_val;
 									$$.num = obj_sym[$3.ptr].num;
@@ -304,19 +338,19 @@ int next_obj = 0;
 								}else if(it != sym.end()){
 									printf("Line %d, %s has no value\n", yylval.lineno, $1.ptr);
 									#ifdef DEBUG
-									printf("\trender ID\n");
+									printf("\trender obj ID\n");
 									#endif
 									$$.which_val = 0;
 									$$.num = 0;
 								}else{
 									printf("Line %d, type violation\n", yylval.lineno);
 									#ifdef DEBUG
-									printf("\trender ID\n");
+									printf("\trender obj ID\n");
 									#endif
 									$$.which_val = 0;
 									$$.num = 0;
 								}
-							}else if(it != sym.end()){
+							}else if(it != sym.end() && it->second.which_val == OBJ){
 								printf("Line %d, %s has no value\n", yylval.lineno, $1.ptr);
 								#ifdef DEBUG
 								printf("\trender ID\n");
