@@ -145,7 +145,7 @@ int next_obj = 0;
 			;
 
 	maybe_newline: /*empty*/
-							 | NEWLINE
+							 | maybe_newline NEWLINE
 							 ;
 
 	meta_expr: expr
@@ -160,7 +160,7 @@ int next_obj = 0;
 					;
 	
 	fields: field maybe_newline
-				| fields ',' field maybe_newline
+				| fields ',' maybe_newline field maybe_newline
 				;
 
 	field: ID ':' expr {
@@ -171,7 +171,7 @@ int next_obj = 0;
 									//Screw conditionals, lets take data we don't even need!
 									obj_sym[$1.ptr].num = $3.num;
 									obj_sym[$1.ptr].ptr = $3.ptr;
-
+									objs[next_obj] = obj_sym;
 								}
 				;
 
@@ -336,14 +336,16 @@ int next_obj = 0;
 									$$.num = obj_sym[$3.ptr].num;
 									$$.ptr = obj_sym[$3.ptr].ptr;
 								}else if(it != sym.end()){
-									printf("Line %d, %s has no value\n", yylval.lineno, $1.ptr);
+									printf("Line %d, type violation\n", yylval.lineno);
+									//printf("Line %d, %s has no value\n", yylval.lineno, $1.ptr);
 									#ifdef DEBUG
 									printf("\trender obj ID\n");
 									#endif
 									$$.which_val = 0;
 									$$.num = 0;
 								}else{
-									printf("Line %d, type violation\n", yylval.lineno);
+									printf("Line %d, %s has no value\n", yylval.lineno, $1.ptr);
+									//printf("Line %d, type violation\n", yylval.lineno);
 									#ifdef DEBUG
 									printf("\trender obj ID\n");
 									#endif
