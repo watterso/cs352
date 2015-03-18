@@ -5,7 +5,7 @@ detectOS:
 	make $(UNAME)
 
 Linux: y.tab.c lex.yy.c
-	g++ -DDEBUG=$(DEBUG) y.tab.c lex.yy.c -o parser -lfl
+	g++ -DDEBUG=$(DEBUG) y.tab.c lex.yy.c -o parser -lfl -Wno-write-strings
 Darwin: y.tab.c lex.yy.c
 	g++ -DDEBUG=$(DEBUG) y.tab.c lex.yy.c -o parser -ll -Wno-write-strings 
 
