@@ -6,6 +6,8 @@
 
 %%
 "var"									{return VAR;}
+"true"								{return B_TRUE;}
+"false"								{return B_FALSE;}
 "<script type=\"text/JavaScript\">" {return START_SCRIPT;}
 "</script>"							{return END_SCRIPT;}
 "document.write"			{return WRITE;}
@@ -14,6 +16,15 @@
 "\n"									{yylineno++;return NEWLINE;}
 ";"										{return END_STATEMENT;}
 \"[^\n^\"]*\"						{yylval.ptr = strndup(yytext+1,strlen(yytext)-2); yylval.which_val = STRING_LITERAL; yylval.lineno = yylineno; return STRING_LITERAL;}
+"!="										{return NE;}
+"=="										{return EQ;}
+">="										{return GTE;}
+"<="										{return LTE;}
+"<"										{return LT;}
+">"										{return GT;}
+"&&"										{return AND;}
+"||"										{return OR;}
+"!"										{return NOT;}
 "="										{return '=';}
 "("										{return '(';}
 ")"										{return ')';}

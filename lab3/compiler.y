@@ -3,8 +3,6 @@
 #include "compiler.h"
 #define MAX_OBJS 50
 #define MAX_ARRS 50
-int yylex();
-void yyerror(char*);
 
 SymbolTable sym;
 const char * MY_UNDEFINED = "undefined";
@@ -15,6 +13,9 @@ int next_arr = 0;
 %}
 
 	%token ID VAR BASE_OPERATOR MULT_OPERATOR WRITE
+	%token EQ NE GTE LTE GT LT
+	%token AND OR NOT
+	%token B_TRUE B_FALSE
 	%token MULTI_LINE_STRING BAD_WRITE
 	%token END_STATEMENT START_SCRIPT END_SCRIPT NEWLINE
 	%start script 
@@ -220,9 +221,113 @@ int next_arr = 0;
 								}
 				;
 
-	expr: add_expr
+	expr: bool_expr
 			;
+	
+	bool_expr: rel_expr
+					 | bool_expr AND rel_expr {
+							int l = truthy_val($1);
+							int r = truthy_val($3);
+							if(l != -1 && r != -1){
+								$$.which_val = BOOL;
+								$$.num = l && r;
+							}else{
+								//TODO error one or both invalid truthy types
+								//type violation
+							}
+						}
+					 | bool_expr OR rel_expr {
+							int l = truthy_val($1);
+							int r = truthy_val($3);
+							if(l != -1 && r != -1){
+								$$.which_val = BOOL;
+								$$.num = l || r;
+							}else{
+								//TODO error one or both invalid truthy types
+								//type violation
+							}
+						}
+					 | NOT rel_expr {
+							int v = truthy_val($2);
+							if(v != -1){
+								$$.which_val = BOOL;
+								$$.num = !v;
+							}else{
+								//TODO error invalid truthy type
+								//type violation
+							}
+					  }
+					 ;
 
+	rel_expr: add_expr
+					| rel_expr EQ add_expr {
+							int le_cmp = my_cmp($1,$3, EQ);
+							if(le_cmp == -1){
+								//TODO invalid comp, error messages
+								$$.which_val = 0;
+								$$.num = 0;
+							}else{
+								$$.which_val = BOOL;
+								$$.num = le_cmp;
+							}
+						}
+					| rel_expr NE add_expr {
+							int le_cmp = my_cmp($1,$3, NE);
+							if(le_cmp == -1){
+								//TODO invalid comp, error messages
+								$$.which_val = 0;
+								$$.num = 0;
+							}else{
+								$$.which_val = BOOL;
+								$$.num = le_cmp;
+							}
+						} 
+					| rel_expr GTE add_expr {
+							int le_cmp = my_cmp($1,$3, GTE);
+							if(le_cmp == -1){
+								//TODO invalid comp, error messages
+								$$.which_val = 0;
+								$$.num = 0;
+							}else{
+								$$.which_val = BOOL;
+								$$.num = le_cmp;
+							}
+						} 
+					| rel_expr LTE add_expr {
+							int le_cmp = my_cmp($1,$3, LTE);
+							if(le_cmp == -1){
+								//TODO invalid comp, error messages
+								$$.which_val = 0;
+								$$.num = 0;
+							}else{
+								$$.which_val = BOOL;
+								$$.num = le_cmp;
+							}
+						} 
+					| rel_expr GT add_expr {
+							int le_cmp = my_cmp($1,$3, GT);
+							if(le_cmp == -1){
+								//TODO invalid comp, error messages
+								$$.which_val = 0;
+								$$.num = 0;
+							}else{
+								$$.which_val = BOOL;
+								$$.num = le_cmp;
+							}
+						} 
+					| rel_expr LT add_expr {
+							int le_cmp = my_cmp($1,$3, LT);
+							if(le_cmp == -1){
+								//TODO invalid comp, error messages
+								$$.which_val = 0;
+								$$.num = 0;
+							}else{
+								$$.which_val = BOOL;
+								$$.num = le_cmp;
+							}
+						} 
+					;
+	
 	add_expr: mult_expr
 					| add_expr '+' mult_expr { 
 					 					if($1.which_val == INT && $3.which_val == INT){
@@ -365,7 +470,9 @@ int next_arr = 0;
 						}
 				 | INT
 				 | STRING_LITERAL
-				 | '(' add_expr ')' {$$.which_val = $2.which_val; $$.num = $2.num; $$.ptr = $2.ptr;}
+				 | B_TRUE { $$.which_val = BOOL; $$.num = 1;}
+				 | B_FALSE { $$.which_val = BOOL; $$.num = 0;}
+				 | '(' bool_expr ')' {$$.which_val = $2.which_val; $$.num = $2.num; $$.ptr = $2.ptr;}
 				 | ID '.' ID {
 							SymbolTable::iterator it;
 							it = sym.find($1.ptr);
@@ -447,6 +554,62 @@ int next_arr = 0;
 		
 %%
 
+int my_cmp(YYSTYPE left, YYSTYPE right, int cmpr){
+	if(same_type(left, right)){
+		if(defined(left)){
+			switch(left.which_val){
+				case BOOL:
+					switch(cmpr){
+						case EQ: return left.num == right.num; break;
+						case NE: return left.num != right.num; break;
+						default: return -1;
+					}break;
+				case INT:
+					switch(cmpr){
+						case EQ: return left.num == right.num; break;
+						case NE: return left.num != right.num; break;
+						case GTE: return left.num >= right.num; break;
+						case LTE: return left.num <= right.num; break;
+						case GT: return left.num > right.num; break;
+						case LT: return left.num < right.num; break;
+						default: return -1;
+					}break;
+				case STRING_LITERAL:
+					switch(cmpr){
+						case EQ: return strcmp(left.ptr,right.ptr) == 0; break;
+						case NE: return strcmp(left.ptr,right.ptr) != 0; break;
+					}break;
+				default: return -1;
+			}
+		}else{
+			return -1;
+		}
+	}else{
+		return -1;
+	}
+	//crazy case, same defined type but switches don't catch it?
+	//impossibru!
+	return -1;
+}
+int truthy_val(YYSTYPE val){
+	int ret = 0;
+	switch(val.which_val){
+		case BOOL: ret = val.num; break;
+		case INT: ret = val.num!=0; break;
+		case STRING_LITERAL: ret = strlen(val.ptr)!=0; break;
+		default: ret = -1; //arr and objs can't be used in bool expressions
+	}
+	return ret;
+}
+int same_type(YYSTYPE left, YYSTYPE right){
+	return left.which_val == right.which_val;
+}
+int is_type(YYSTYPE val, int type){
+	return val.which_val == type;
+}
+int defined(YYSTYPE val){
+	return val.which_val !=0 && val.num !=0;
+}
 #ifdef DEBUG
 #   define YY_DEBUG 0
 #else
