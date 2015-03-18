@@ -1,13 +1,17 @@
 %{
+#include<stdio.h>
 #include "compiler.h"
+#define MAX_OBJS 50
+#define MAX_ARRS 50
 int yylex();
 void yyerror(char*);
-#include<stdio.h>
+
 SymbolTable sym;
 const char * MY_UNDEFINED = "undefined";
-#define MAX_OBJS 50
 SymbolTable objs[MAX_OBJS];
 int next_obj = 0;
+OmniArray arrs[MAX_ARRS];
+int next_arr = 0;
 %}
 
 	%token ID VAR BASE_OPERATOR MULT_OPERATOR WRITE
@@ -19,6 +23,8 @@ int next_obj = 0;
 	%token INT
 	%token STRING_LITERAL
 	%token OBJ
+	%token ARR
+	%token BOOL
 
 %%
 	script: errors START_SCRIPT NEWLINE stmts END_SCRIPT errors
@@ -101,6 +107,24 @@ int next_obj = 0;
 								#endif
 							}
 						}
+			| ID '[' expr ']' '=' expr{
+							if($3.which_val == INT){
+								SymbolTable::iterator it;
+								it = sym.find($1.ptr);
+								if(it != sym.end() && sym[$1.ptr].which_val == ARR){
+									OmniArray le_array = arrs[sym[$1.ptr].num];
+									le_array[$3.num].defined = $5.which_val == 0 && $5.num == 0 ? 0 :1;
+									le_array[$3.num].which_val = $5.which_val;
+									le_array[$3.num].num = $5.num;
+									le_array[$3.num].ptr = $5.ptr;
+									arrs[sym[$1.ptr].num] = le_array;
+								}else{
+									//TODO arr no exist or var not arr
+								}
+							}else{
+								//TODO array access err
+							}
+						}
 			;
 
 	args: /*empty*/
@@ -150,10 +174,31 @@ int next_obj = 0;
 
 	meta_expr: expr
 					 | obj_expr
+					 | arr_expr
 					 ;
 	
-	expr: add_expr
-			;
+	arr_expr: '[' ']' 				{$$.which_val = ARR; $$.num = next_arr++;}
+					| '[' maybe_newline arr_vals ']' {$$.which_val = ARR; $$.num = next_arr++;}
+
+	arr_vals: arr_val maybe_newline
+					| arr_vals ',' maybe_newline arr_val maybe_newline
+					;
+
+	arr_val: expr {
+							OmniArray le_array = arrs[next_arr];
+							int i = 0;
+							if(le_array.rbegin() != le_array.rend()){
+								i = le_array.rbegin()->first + 1;
+							}
+							le_array[i];
+							le_array[i].defined = 1;
+							le_array[i].which_val = $1.which_val;
+							//Screw conditionals, lets take data we don't even need!
+							le_array[i].num = $1.num;
+							le_array[i].ptr = $1.ptr;
+							arrs[next_arr] = le_array;
+						}
+
 
 	obj_expr: '{' '}'					{$$.which_val = OBJ; $$.num = next_obj++;}
 					| '{' maybe_newline fields '}'	{$$.which_val = OBJ; $$.num = next_obj++;}
@@ -174,6 +219,9 @@ int next_obj = 0;
 									objs[next_obj] = obj_sym;
 								}
 				;
+
+	expr: add_expr
+			;
 
 	add_expr: mult_expr
 					| add_expr '+' mult_expr { 
@@ -368,6 +416,33 @@ int next_obj = 0;
 								$$.num = 0;
 							}
 						}
+				 | ID '[' expr ']' {
+							if($3.which_val == INT){
+								SymbolTable::iterator it;
+								it = sym.find($1.ptr);
+								if(it != sym.end() && sym[$1.ptr].which_val == ARR){
+									OmniArray le_array = arrs[sym[$1.ptr].num];
+									OmniArray::iterator it = le_array.find($3.num);
+								  if(it != le_array.end() && it->second.defined==1){
+										$$.which_val = le_array[$3.num].which_val;
+										$$.ptr = le_array[$3.num].ptr;
+										$$.num = le_array[$3.num].num;
+									}else{
+										//TODO key did not exist, AKA indexoutofbounds
+										$$.which_val = 0; //set undefined
+										$$.num = 0;
+									}
+								}else{
+								 	//TODO arr no exist or var not arr
+									$$.which_val = 0; //set undefined
+									$$.num = 0;
+								}
+							}else{
+								//TODO array access err
+								$$.which_val = 0; //set undefined
+								$$.num = 0;
+							}
+				 	}
 				 ;
 		
 %%

@@ -21,3 +21,4 @@ struct cmp_str
 	}
 };
 typedef std::map<char*,Variable,cmp_str>SymbolTable;
+typedef std::map<int,Variable>OmniArray;

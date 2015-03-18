@@ -7,7 +7,7 @@ detectOS:
 Linux: y.tab.c lex.yy.c
 	g++ -DDEBUG=$(DEBUG) y.tab.c lex.yy.c -o parser -lfl
 Darwin: y.tab.c lex.yy.c
-	g++ -DDEBUG=$(DEBUG) y.tab.c lex.yy.c -o parser -ll
+	g++ -DDEBUG=$(DEBUG) y.tab.c lex.yy.c -o parser -ll -Wno-write-strings 
 
 y.tab.c: compiler.y
 	yacc --yacc -dv -g -t compiler.y
