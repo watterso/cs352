@@ -42,7 +42,7 @@
 [ \t]									{}						//discard
 
 \"[^\"]*\n[^\"]*\"						{return MULTI_LINE_STRING;}
-document[^\n]+write				{return BAD_WRITE;}
+document[^\n]+\.[^\n]+write				{return BAD_WRITE;}
 
 %%
 

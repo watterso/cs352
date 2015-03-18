@@ -30,3 +30,6 @@ int truthy_val(YYSTYPE val);
 int same_type(YYSTYPE left, YYSTYPE right);
 int is_type(YYSTYPE val, int type);
 int defined(YYSTYPE val);
+void undeclared(int lineno, char* var_name);
+void value_error(int lineno, char* var_name);
+void type_violation(int lineno);

@@ -8,3 +8,9 @@ y.output
 tests
 y.vcg
 parser
+.DS_STORE
+tests/
+test/
+*.log
+*.html
+harness*
