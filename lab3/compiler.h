@@ -1,5 +1,6 @@
 #include <string.h>
 #include <map>
+#include "ast.h"
 typedef struct {
 	int num;
 	char* ptr;

@@ -17,6 +17,7 @@ int last_line_error = 0;
 	%token EQ NE GTE LTE GT LT
 	%token AND OR NOT
 	%token B_TRUE B_FALSE
+	%token I_COND
 	%token MULTI_LINE_STRING BAD_WRITE
 	%token END_STATEMENT START_SCRIPT END_SCRIPT NEWLINE
 	%start script 
@@ -127,6 +128,13 @@ int last_line_error = 0;
 								//TODO array access err
 							}
 						}
+			| I_COND '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}' {
+					if($3.which_val == BOOL){
+						//TODO AST bsns do something	
+					}else{
+						//TODO syntax err, that isn't a boolean expression
+					}
+				}
 			;
 
 	args: /*empty*/
@@ -635,6 +643,7 @@ void value_error(int lineno, char* var_name){
 	}
 }
 void type_violation(int lineno){
+	printf("%d ? %d\n", lineno, last_line_error);
 	if(lineno > last_line_error){
 		fprintf(stderr, "Line %d, type violation\n", lineno);
 		last_line_error = lineno;
