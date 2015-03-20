@@ -33,3 +33,6 @@ int defined(YYSTYPE val);
 void undeclared(int lineno, char* var_name);
 void value_error(int lineno, char* var_name);
 void type_violation(int lineno);
+void dump_sym();
+void dump_var(Variable var);
+void dump_obj(char* id, SymbolTable obj_sym, int pad);

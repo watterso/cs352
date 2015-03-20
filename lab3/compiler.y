@@ -10,6 +10,7 @@ SymbolTable objs[MAX_OBJS];
 int next_obj = 0;
 OmniArray arrs[MAX_ARRS];
 int next_arr = 0;
+int last_line_error = 0;
 %}
 
 	%token ID VAR BASE_OPERATOR MULT_OPERATOR WRITE
@@ -56,15 +57,12 @@ int next_arr = 0;
 							sym[$2.ptr].ptr = $4.ptr;
 
 							#if DEBUG == 1
-							printf("%d: (%d,%s)\n", $4.which_val, $4.num, $4.ptr);
+							//printf("%d: (%d,%s)\n", $4.which_val, $4.num, $4.ptr);
 							#endif
 
 							#if DEBUG == 1
-							if(sym[$2.ptr].which_val==INT){
-								printf("Declared %s = %d\n",$2.ptr,sym[$2.ptr].num);
-							}else{
-								printf("Declared %s = %s\n",$2.ptr,sym[$2.ptr].ptr);
-							}
+							printf("Declared %s = \n",$2.ptr);
+							dump_var(sym[$2.ptr]);
 							#endif
 				}
 			| ID '=' expr {
@@ -101,11 +99,8 @@ int next_arr = 0;
 								obj_sym[$3.ptr].ptr = $5.ptr;
 								objs[sym[$1.ptr].num] = obj_sym;
 								#if DEBUG == 1
-								printf("%d: (%d,%s) ? %d\n", $5.which_val, $5.num, $5.ptr, $5.which_val == 0 && $5.num == 0 ? 0 :1);
-								for(SymbolTable::iterator it1 = obj_sym.begin(); it1 != obj_sym.end(); ++it1) {
-								                      printf("%s, ",it1->first);
-																			                      }
-																														printf(" ------END\n");
+								//printf("type %d: (%d,%s), defined: %d\n", $5.which_val, $5.num, $5.ptr, $5.which_val == 0 && $5.num == 0 ? 0 :1);
+								dump_obj($1.ptr, obj_sym, 0);
 								#endif
 							}else{
 								type_violation(yylval.lineno);
@@ -486,11 +481,7 @@ int next_arr = 0;
 								SymbolTable obj_sym = objs[sym[$1.ptr].num];
 								it = obj_sym.find($3.ptr);
 									#if DEBUG == 1
-									printf("sub: %d  %s\n",sym[$1.ptr].num,$3.ptr);
-									for(SymbolTable::iterator it1 = obj_sym.begin(); it1 != obj_sym.end(); ++it1) {
-										  printf("%s, ",it1->first);
-											}
-
+									printf("Accessing %s.%s\n", $1.ptr, $3.ptr);
 									#endif
 								if(it != sym.end() && it->second.defined==1){
 									$$.which_val = obj_sym[$3.ptr].which_val;
@@ -548,7 +539,18 @@ int next_arr = 0;
 										$$.ptr = le_array[$3.num].ptr;
 										$$.num = le_array[$3.num].num;
 									}else{
-										//TODO key did not exist, AKA indexoutofbounds
+										//key did not exist, AKA indexoutofbounds
+										int name_len = strlen($1.ptr);
+										char digits[5];
+										sprintf(digits,"%d",$3.num);
+										int index_size = strlen(digits);
+										char combo[name_len+index_size+3];
+										strncpy(combo, $1.ptr, name_len);
+										combo[name_len] = '[';
+										sprintf(combo+name_len+1,"%s", digits);
+										combo[name_len+index_size+1] = ']';
+										combo[name_len+index_size+2] = '\0';
+										value_error(yylval.lineno, combo);
 										$$.which_val = 0; //set undefined
 										$$.num = 0;
 									}
@@ -566,15 +568,77 @@ int next_arr = 0;
 				 ;
 		
 %%
-
+void dump_sym(){
+	int pad = 2;
+	const char* pad_str = "                                           ";
+	printf("variables : {\n");
+	for(SymbolTable::iterator it = sym.begin(); it != sym.end(); ++it) {
+		if(it->second.which_val != OBJ){
+			printf("%*.*s%s: ", pad, pad, pad_str, it->first);
+		}
+		switch(it->second.which_val){
+			case INT: printf("%d\n", it->second.num);
+								break;
+			case STRING_LITERAL: printf("'%s'\n", it->second.ptr);
+													 break;
+			case OBJ: dump_obj(it->first, objs[it->second.num], pad); 
+								break;
+			case ARR: printf("arr[%d]\n", it->second.num);
+								break;
+			default: printf("undefined\n");
+		}
+	}
+	printf("}");
+}
+void dump_var(Variable var){
+	switch(var.which_val){
+		case INT: printf("%d\n", var.num);
+			break;
+		case STRING_LITERAL: printf("%s\n", var.ptr);
+			break;
+		case OBJ: dump_obj(var.ptr, objs[var.num], 0);
+			break;
+		case ARR: printf("arr[%d]\n", var.num);
+			break;
+		default: printf("undefined\n");
+	}
+}
+void dump_obj(char* id, SymbolTable obj_sym, int pad){
+	const char* pad_str = "                                           ";
+	printf("%*.*s%s : {\n", pad, pad, pad_str, id);
+	for(SymbolTable::iterator it1 = obj_sym.begin(); it1 != obj_sym.end(); ++it1) {
+		printf("%*.*s  %s: ", pad, pad, pad_str, it1->first);
+		switch(it1->second.which_val){
+			case INT: printf("%d\n", it1->second.num);
+								break;
+			case STRING_LITERAL: printf("'%s'\n", it1->second.ptr);
+													 break;
+			case OBJ: printf("obj{%d}\n",	it1->second.num);
+								break;
+			case ARR: printf("arr[%d]\n", it1->second.num);
+								break;
+			default: printf("undefined\n");
+		}
+	}
+	printf("%*.*s}\n", pad, pad, pad_str);
+}
 void undeclared(int lineno, char* var_name){
-	fprintf(stderr, "Line %d, %s undeclared\n", lineno, var_name);
+	if(lineno > last_line_error){
+		fprintf(stderr, "Line %d, %s undeclared\n", lineno, var_name);
+		last_line_error = lineno;
+	}
 }
 void value_error(int lineno, char* var_name){
-	fprintf(stderr, "Line %d, %s has no value\n", lineno, var_name);
+	if(lineno > last_line_error){
+		fprintf(stderr, "Line %d, %s has no value\n", lineno, var_name);
+		last_line_error = lineno;
+	}
 }
 void type_violation(int lineno){
-	fprintf(stderr, "Line %d, type violation\n", lineno);
+	if(lineno > last_line_error){
+		fprintf(stderr, "Line %d, type violation\n", lineno);
+		last_line_error = lineno;
+	}
 }
 int my_cmp(YYSTYPE left, YYSTYPE right, int cmpr){
 	if(same_type(left, right)){
@@ -633,7 +697,7 @@ int defined(YYSTYPE val){
 	return val.which_val !=0 && val.num !=0;
 }
 #if DEBUG == 1
-#   define YY_DEBUG 1
+#   define YY_DEBUG 0
 #else
 #   define YY_DEBUG 0 
 #endif
@@ -659,6 +723,9 @@ int main(int argc, char *argv[])
 			yyin = file;
 			//yyparse() will call yylex()
 			yyparse();
+			#if DEBUG ==1
+			dump_sym();
+			#endif
 		}
 	} else{
 		fprintf(stderr, "format: ./parser [filename]\n");
