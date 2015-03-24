@@ -12,6 +12,9 @@
 "</script>"							{return END_SCRIPT;}
 "document.write"			{return WRITE;}
 "if"									{return I_COND;}
+"else"								{return E_COND;}
+"while"								{return WHILE;}
+"do"									{return DO;}
 [a-zA-Z][a-zA-Z0-9_]*	{yylval.ptr = strdup(yytext); yylval.which_val = STRING_LITERAL; yylval.lineno = yylineno; return ID;} 
 [0-9]+								{yylval.num = atoi(yytext); yylval.which_val = INT; yylval.lineno = yylineno; return INT;}
 "\n"									{yylineno++;return NEWLINE;}

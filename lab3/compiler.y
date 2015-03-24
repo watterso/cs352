@@ -17,7 +17,8 @@ int last_line_error = 0;
 	%token EQ NE GTE LTE GT LT
 	%token AND OR NOT
 	%token B_TRUE B_FALSE
-	%token I_COND
+	%token I_COND E_COND
+	%token WHILE DO
 	%token MULTI_LINE_STRING BAD_WRITE
 	%token END_STATEMENT START_SCRIPT END_SCRIPT NEWLINE
 	%start script 
@@ -128,12 +129,45 @@ int last_line_error = 0;
 								//TODO array access err
 							}
 						}
-			| I_COND '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}' {
+			| if_block
+			| if_else
+			| else
+			| do_while
+			| while_do
+			;
+	
+	while_do: WHILE '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}'{
+							//TODO while_do
+						}
+					;
+	
+	do_while: DO '{' NEWLINE stmts NEWLINE '}' NEWLINE WHILE '(' bool_expr ')'{
+							//TODO do_while
+						}
+					;
+
+
+	if_block: I_COND '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}' {
 					if($3.which_val == BOOL){
 						//TODO AST bsns do something	
 					}else{
 						//TODO syntax err, that isn't a boolean expression
 					}
+		 		} 		
+			;
+	
+	if_else: if_block E_COND I_COND '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}'{
+					//TODO start if ... else if... 	
+				}
+			| if_else E_COND I_COND '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}'{
+					//TODO continue if ... else if... 	
+				}
+			;
+	else: if_block E_COND '{' NEWLINE stmts NEWLINE '}' {
+					//TODO if ... else ...	
+				}
+			| if_else E_COND '{' NEWLINE stmts NEWLINE '}' {
+					//TODO if ... else if ... else ...	
 				}
 			;
 
