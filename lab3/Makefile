@@ -1,21 +1,10 @@
-UNAME := $(shell uname)
-DEBUG := 0
-
-detectOS:
-	make $(UNAME)
-
-Linux: y.tab.c lex.yy.c
-	g++ -DDEBUG=$(DEBUG) y.tab.c lex.yy.c ast.c -o parser -lfl -Wno-write-strings
-Darwin: y.tab.c lex.yy.c
-	g++ -DDEBUG=$(DEBUG) y.tab.c lex.yy.c ast.c -o parser -ll -Wno-write-strings 
-
-y.tab.c: compiler.y
-	yacc --yacc -dv -g -t compiler.y
-lex.yy.c: compiler.l
-	lex compiler.l
+all:
+	rm -f parser
+	echo '#!'`which python` > parser
+	cat parser.py >> parser
+	chmod +x parser
 clean:
-	rm -f lex.yy.c y.tab.c y.tab.h y.dot y.output y.vcg
-
+	rm -f parser parsetab.* parser.out parselog.txt *.pyc
 .PHONY: test
 test: 
 	ruby ./test/test.rb
