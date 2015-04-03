@@ -7,9 +7,9 @@ def is_array(a_dict):
   return not False in [type(k) is int for k in a_dict.keys()]
 
 def _exe_stmts(stmts, scope):
-  for s in stmts:
-    if s:
-      s.exe(scope)
+  for st in stmts:
+    if st:
+      st.exe(scope)
 
 class Scope:
   def __init__(self, parent=None, **kwargs):
@@ -64,12 +64,18 @@ class Scope:
         self.scope[var] = val
 
 class Statement:
+  def __repr__(self):
+    return str(self)
+
   def exe(self, scope):
     pass
 
 class Block(Statement):
   def __init__(self, stmts=[]):
     self.stmts = stmts
+
+  def __str__(self):
+    return 'Block<{0}>'.format(len(self.stmts))
 
   def exe(self, scope):
     _exe_stmts(self.stmts, scope)
@@ -79,6 +85,9 @@ class If(Statement):
     self.cond = cond
     self.soit = soit
     self.stmts = stmts
+
+  def __str__(self):
+    return 'If<{0}>'.format(self.cond)
 
   def exe(self, scope): 
     if self.cond.exe(scope):
@@ -91,6 +100,9 @@ class While(Statement):
     self.cond = cond
     self.stmts = stmts 
 
+  def __str__(self):
+    return 'While<{0}>'.format(self.cond)
+
   def exe(self, scope):
     while self.cond.exe(scope):
       _exe_stmts(self.stmts, scope)
@@ -99,6 +111,9 @@ class DoWhile(Statement):
   def __init__(self, cond, stmts):
     self.cond = cond
     self.stmts = stmts 
+
+  def __str__(self):
+    return 'DoWhile<{0}>'.format(self.cond)
 
   def exe(self, scope):
     _exe_stmts(self.stmts, scope)
@@ -109,6 +124,9 @@ class Decl(Statement):
   def __init__(self, var):
     self.var = var
 
+  def __str__(self):
+    return 'Decl<{0}>'.format(self.var)
+
   def exe(self, scope):
     scope.set_var(self.var, None, recurse=False)
 
@@ -116,6 +134,9 @@ class Init(Statement):
   def __init__(self, var, val):
     self.var = var
     self.val = val
+
+  def __str__(self):
+    return 'Init<{0},{1}>'.format(self.var, self.val)
 
   def exe(self, scope):
     scope.set_var(self.var, self.val, recurse=False)
@@ -126,16 +147,22 @@ class Assign(Statement):
     self.val = val
     self.field = field
 
+  def __str__(self):
+    return 'Assign<{0},{1}>'.format(self.var, self.val)
+
   def exe(self, scope):
     field = self.field
-    if field is not None and isinstance(field, Literal):
+    val = self.val
+    while isinstance(val,Statement):
+      val = val.exe(scope)
+    while field is not None and isinstance(field, Statement):
       field = field.exe(scope)
     if scope.exists(self.var):
-      scope.set_var(self.var, self.val, field)
+      scope.set_var(self.var, val, field)
     else:
       #TODO no such variable error
       # (we assign it anyway)
-      scope.set_var(self.var, self.val, field)
+      scope.set_var(self.var, val, field)
 
 class Var(Statement):
   def __init__(self, key, field=None):
@@ -143,14 +170,16 @@ class Var(Statement):
     self.field = field
 
   def __str__(self):
-    return 'Var({0})'.format(str(self.key))
+    return 'Var<{0}>'.format(str(self.key))
 
   def exe(self, scope):
     curr_val = scope.get_var(self.key)
-    field = self.field if not isinstance(self.field, Literal) else self.field.exe(scope)
-    if isinstance(curr_val, Literal):
+    field = self.field 
+    while isinstance(curr_val, Statement):
       curr_val = curr_val.exe(scope)
     if field is not None:
+      while isinstance(field, Statement):
+        field = field.exe(scope)
       curr_val = curr_val[field]
       return curr_val.exe(scope) if isinstance(curr_val, Literal) else curr_val
     else:
@@ -161,7 +190,7 @@ class Literal(Statement):
     self.val = val
   
   def __str__(self):
-    return 'Literal({0})'.format(str(self.val))
+    return 'Literal<{0}>'.format(str(self.val))
 
   def exe(self, scope):
     return self.val
@@ -172,7 +201,28 @@ class Op(Statement):
     self.kwargs = kwargs
 
   def __str__(self):
-    return 'Op({0} ? {1})'.format(str(self.kwargs[0]), str(self.kwargs[1]))
+    kwargs = list(self.kwargs)
+    if len(kwargs) > 1:
+      return 'Op<{0} {2} {1}>'.format(kwargs[0], kwargs[1], self._operator_string())
+    else:
+      return 'Op<!{0}>'.format(self.kwargs[0])
+
+  def _operator_string(self):
+    f = self.func
+    if f is And:
+      return '&&'
+    elif f is Or:
+      return '||'
+    elif f is Add:
+      return '+'
+    elif f is Sub:
+      return '-'
+    elif f is Mult:
+      return '*'
+    elif f is Div:
+      return '/'
+    else:
+      return '?'
 
   def exe(self, scope):
     return self.func(scope, *self.kwargs)
@@ -181,15 +231,18 @@ def render_vars(func):
   def render(scope, *kwargs):
     new_kwargs = []
     for x in kwargs:
-      while isinstance(x, Statement):
-        x = x.exe(scope)
-      new_kwargs.append(x)
+      y = x
+      while isinstance(y, Statement):
+        y = y.exe(scope)
+      new_kwargs.append(y)
     return func(scope, *new_kwargs )
   return render
 
 @render_vars
 def Print(scope, *kwargs):
-  out = ''.join('\n' if x == '<br />' else x for x in kwargs)
+  rep = {'<br />': '\n', 'True' : 'true', 'False': 'false'}
+  arr = [rep[str(x)] if str(x) in rep else str(x) for x in kwargs]
+  out = ''.join(arr)
   print(out, end='')
 
 @render_vars
@@ -200,9 +253,8 @@ def And(scope, lval, rval):
 def Or(scope, lval, rval):
   return lval or rval
 
+@render_vars
 def Not(scope, val):
-  if isinstance(val, Var):
-    val = val.exe(scope)
   return not val
 
 @render_vars

@@ -5,7 +5,7 @@ from lexer import MiniScriptLexer
 from lib import yacc
 from my_ast import *
 
-debug = 1
+debug = 0
 f_debug = debug
 
 tokens = MiniScriptLexer.tokens
@@ -17,9 +17,21 @@ root = Block()
 curr_stmts =[]
 stack = []
 
+def _print_stmts(stmt, indent=0):
+  print('{0}{1}'.format(' '*2*indent, stmt))
+  if hasattr(stmt,'stmts') and stmt.stmts:
+    for st in stmt.stmts:
+      _print_stmts(st, indent+1)
+  if hasattr(stmt,'soit') and stmt.soit:
+    print(' '*2*indent+'else:')
+    _print_stmts(stmt.soit,indent)
+
 def _render_literal(scope, lit, real=False):
-  if real:
-    return lit.exe(scope) if isinstance(lit, Statement) else lit
+  if real and lit is not None:
+    res = lit
+    while isinstance(res, Statement):
+      res = res.exe(scope)
+    return res
   else:
     return lit
 
@@ -48,7 +60,10 @@ def p_meta_stmt(p):
                | meta_stmt ';' stmt
   '''
   if len(p) > 2:
-    p[0] = [p[1], p[3]]
+    vals = []
+    vals.extend(p[1])
+    vals.append(p[3])
+    p[0] = vals 
   else:
     p[0] = [p[1]]
 
@@ -166,11 +181,11 @@ def p_assign(p):
     pre = p[1]
     post = p[3]
     if p[2] == '.':
-      pre = '{0}.{1}'.format(p[1], _render_literal(root_scope, p[3], True))
-      post = _render_literal(root_scope, p[5], True)
+      pre = '{0}.{1}'.format(p[1], p[3])
+      post = p[5] 
     if p[2] == '[':
-      pre = '{0}[{1}]'.format(p[1], _render_literal(root_scope, p[3], True))
-      post = _render_literal(root_scope, p[6], True)
+      pre = '{0}[{1}]'.format(p[1], p[3])
+      post = p[6]
     print('Assign: {0} = {1}'.format(pre,post))
 
 def p_expr(p):
@@ -352,6 +367,7 @@ if len(sys.argv) >= 2:
     yacc.parse(src_lines, debug=log)
   else:
     yacc.parse(src_lines)
+  #_print_stmts(root)
   root.exe(root_scope)
   #print(root_scope)
 
