@@ -13,8 +13,6 @@ class MiniScriptLexer:
     'while': 'WHILE',
     'do': 'DO',
     'var': 'VAR',
-    'true': 'TRUE',
-    'false': 'FALSE',
   }
 
   # defined tokens
@@ -22,6 +20,7 @@ class MiniScriptLexer:
       'START', 'END',
       'ID', 'INT', 'STRING_LITERAL',
       'NEWLINE', 'WRITE',
+      'TRUE', 'FALSE',
       'EQ', 'NE', 'GTE', 'LTE', 'GT', 'LT',
       'AND', 'OR', 'NOT'  
       ] + reserved.values()
@@ -32,7 +31,16 @@ class MiniScriptLexer:
   def t_WRITE(self, t):
     r'document.write'
     return t
+  
+  def t_TRUE(self, t):
+    r'true'
+    t.value = True
+    return t
 
+  def t_FALSE(self, t):
+    r'false'
+    t.value = False 
+    return t
 
   t_ignore  = ' \t'
   

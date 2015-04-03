@@ -5,27 +5,29 @@ from lexer import MiniScriptLexer
 from lib import yacc
 from my_ast import *
 
-f_debug = 0
+debug = 1
+f_debug = debug
+
 tokens = MiniScriptLexer.tokens
 
 curr_arr = []
 curr_obj = {}
-root = Node()
-curr_node = root
+root_scope = Scope()
+root = Block()
 curr_stmts =[]
 stack = []
 
-def next_node(new_node):
-  curr_node.after = new_node
-  curr_stmts = []
-  curr_node = new_node
+def _render_literal(scope, lit, real=False):
+  if real:
+    return lit.exe(scope) if isinstance(lit, Statement) else lit
+  else:
+    return lit
 
 # grammar here
 def p_script(p):
   'script : START NEWLINE stmts END NEWLINE'
-  tmp_stmts = copy.deepcopy(p[3])
-  curr_stmts =[]
-  curr_node.extend(tmp_stmts)
+  #dont do normal stack handling because script only happens once
+  root.stmts = curr_stmts
 
 def p_stmts(p):
   '''stmts : empty
@@ -34,7 +36,7 @@ def p_stmts(p):
            | stmts NEWLINE
   '''
   if len(p) > 3:
-    curr_stmts.append(p[2])
+    curr_stmts.extend(p[2])
     p[0] = curr_stmts 
   elif len(p) > 2:
     p[0] = curr_stmts
@@ -46,9 +48,9 @@ def p_meta_stmt(p):
                | meta_stmt ';' stmt
   '''
   if len(p) > 2:
-    p[0] = p[3]
+    p[0] = [p[1], p[3]]
   else:
-    p[0] = p[1]
+    p[0] = [p[1]]
 
 def p_stmt(p):
   '''stmt : decl
@@ -61,61 +63,83 @@ def p_stmt(p):
           | do_while
           | while_do
   '''
-  pass
+  p[0] = p[1]
 
 def p_push_stmts(p):
-  'push : '
+  'push_stmts : empty'
+  if debug:
+    print("Pushing to stack")
+  global curr_stmts
   stack.append(copy.deepcopy(curr_stmts))
   curr_stmts = []
 
 def pop_stmts():
+  if debug:
+    print("Popping from stack")
+  global curr_stmts
   new_stmts = stack.pop()
   curr_stmts = new_stmts if new_stmts is not None else []
 
 def p_while_do(p):
-  '''while_do :  WHILE '(' bool_expr ')' '{' NEWLINE stmts push_stmts NEWLINE '}'
+  '''while_do :  WHILE '(' bool_expr ')' '{' NEWLINE push_stmts stmts '}'
   '''
   p[0] = While(p[3], curr_stmts)
   pop_stmts()
 
-def p_do_while(p):
-  '''do_while : DO '{' NEWLINE stmts push_stmts NEWLINE '}' NEWLINE WHILE '(' bool_expr ')'
-  '''
-  p[0] = DoWhile(p[11], curr_stmts)
+def p_doish(p):
+  'doish : '
+  p[0] = DoWhile(None, curr_stmts)
   pop_stmts()
 
+def p_do_while(p):
+  '''do_while : DO '{' NEWLINE push_stmts stmts '}' NEWLINE WHILE '(' doish bool_expr ')'
+  '''
+  p[10].cond = p[11]
+  p[0] = p[10]
+
 def p_if_block(p):
-  '''if_block : I_COND '(' bool_expr ')' '{' NEWLINE stmts push_stmts NEWLINE '}'
+  '''if_block : I_COND '(' bool_expr ')' '{' NEWLINE push_stmts stmts '}'
   '''
   p[0] = If(p[3], curr_stmts)
   pop_stmts()
 
 def p_if_else(p):
-  '''if_else : if_block E_COND I_COND '(' bool_expr ')' '{' NEWLINE stmts push_stmts NEWLINE '}'
-             | if_else E_COND I_COND '(' bool_expr ')' '{' NEWLINE stmts push_stmts NEWLINE '}'
+  '''if_else : if_block E_COND I_COND '(' bool_expr ')' '{' NEWLINE push_stmts stmts '}'
+             | if_else E_COND I_COND '(' bool_expr ')' '{' NEWLINE push_stmts stmts '}'
   '''
   p[1].soit = If(p[5], curr_stmts)
   p[0] = p[1]
+  pop_stmts()
 
 def p_else(p):
-  '''else : if_block E_COND '{' NEWLINE stmts NEWLINE '}'
-          | if_else E_COND '{' NEWLINE stmts NEWLINE '}'
+  '''else : if_block E_COND '{' NEWLINE push_stmts stmts '}'
+          | if_else E_COND '{' NEWLINE push_stmts stmts '}'
   '''
   p[1].soit = Block(curr_stmts)
   p[0] = p[1]
+  pop_stmts()
 
 
 def p_print(p):
-  '''print : WRITE '(' args ')'
+  '''print : WRITE '(' push_stmts args ')'
   '''
-  pass
-
+  tmp_args = curr_stmts
+  p[0] = Op(Print, *tmp_args)
+  pop_stmts()
+  
 def p_args(p):
   '''args : empty
           | args ',' expr
           | expr
   '''
-  pass
+  if len(p) > 2:
+    curr_stmts.append(p[3])
+    p[0] = curr_stmts
+  elif p[1]:
+    curr_stmts.append(p[1])
+    p[0] = curr_stmts
+  else:
+    p[0] = curr_stmts
 
 def p_decl(p):
   '''decl : VAR ID'''
@@ -123,7 +147,9 @@ def p_decl(p):
 
 def p_init(p):
   '''init : VAR ID '=' expr'''
-  p[0] = Init(p[2], p[3])
+  p[0] = Init(p[2], _render_literal(root_scope, p[4]))
+  if debug:
+    print('Init: {0} = {1}'.format(p[2], _render_literal(root_scope, p[4], True)))
 
 def p_assign(p):
   '''assign : ID '=' expr
@@ -131,11 +157,21 @@ def p_assign(p):
             | ID '[' expr ']' '=' expr
   '''
   if p[2] == '=':
-    p[0] = Assign(p[1], p[3])
+    p[0] = Assign(p[1], _render_literal(root_scope, p[3]))
   if p[2] == '.':
-    p[0] = Assign(p[1], p[5], field=p[3])
+    p[0] = Assign(p[1], _render_literal(root_scope, p[5]), field=_render_literal(root_scope, p[3]))
   if p[2] == '[':
-    p[0] = Assign(p[1], p[5], field=p[3])
+    p[0] = Assign(p[1], _render_literal(root_scope, p[6]), field=_render_literal(root_scope, p[3]))
+  if debug:
+    pre = p[1]
+    post = p[3]
+    if p[2] == '.':
+      pre = '{0}.{1}'.format(p[1], _render_literal(root_scope, p[3], True))
+      post = _render_literal(root_scope, p[5], True)
+    if p[2] == '[':
+      pre = '{0}[{1}]'.format(p[1], _render_literal(root_scope, p[3], True))
+      post = _render_literal(root_scope, p[6], True)
+    print('Assign: {0} = {1}'.format(pre,post))
 
 def p_expr(p):
   '''expr : bool_expr
@@ -162,10 +198,10 @@ def p_arr_vals(p):
               | arr_vals ',' maybe_newline expr maybe_newline
   '''
   if p[2] != ',':
-    curr_arr.append(p[1])
+    curr_arr.append(_render_literal(root_scope, p[1]))
     p[0] = curr_arr
   else:
-    curr_arr.append(p[4])
+    curr_arr.append(_render_literal(root_scope, p[4]))
     p[0] = curr_arr
 
 def p_obj_expr(p):
@@ -184,10 +220,10 @@ def p_fields(p):
             | fields ',' maybe_newline ID ':' expr maybe_newline
   '''
   if p[2] != ',':
-    curr_obj.update({ p[1] : p[3] })
+    curr_obj.update({ p[1] : _render_literal(root_scope, p[3])})
     p[0] = curr_obj
   else:
-    curr_obj.update({ p[4] : p[6] })
+    curr_obj.update({ p[4] : _render_literal(root_scope, p[6])})
     p[0] = curr_obj
 
 def p_bool_expr(p):
@@ -196,12 +232,15 @@ def p_bool_expr(p):
                | bool_expr OR rel_expr
                | NOT rel_expr
   '''
-  if len(p) > 2 and p[2] in '&&||!':
-    if p[2] in '&&||':
-      func = And if p[2] == '&&' else Or
-      p[0] = Op(func, p[1], p[3])
-    else:
-      p[0] = Op(Not, p[2])
+  if len(p) > 3 and p[2] in '&&||':
+    func = And if p[2] == '&&' else Or
+    p[0] = Op(func, p[1], p[3])
+    if debug:
+      print('Op: {0} {1} {2}'.format(p[1], p[2], p[3]))
+  elif p[1] == '!':
+    p[0] = Op(Not, p[2])
+    if debug:
+      print('Op: !{0}'.format(p[2]))
   else:
     p[0] = p[1]
 
@@ -219,7 +258,8 @@ def p_rel_expr(p):
         GTE if p[2] == '>=' else LTE if p[2] == '<=' else \
         GT if p[2] == '>' else LT
     p[0] = Op(func, p[1], p[3])
-    pass
+    if debug:
+      print('Op: {0} {1} {2}'.format(p[1], p[2], p[3]))
   else:
     p[0] = p[1]
 
@@ -261,11 +301,11 @@ def p_var_access(p):
                 | ID '[' bool_expr ']'
   '''
   if len(p)>4:
-    p[0] = Var(p[1], curr_node.scope, p[3])
+    p[0] = Var(p[1], p[3])
   elif len(p)>2:
-    p[0] = Var(p[1], curr_node.scope, p[3])
+    p[0] = Var(p[1], p[3])
   else:
-    p[0] = Var(p[1], curr_node.scope)
+    p[0] = Var(p[1])
 
 def p_constant(p):
   '''constant : INT
@@ -273,7 +313,7 @@ def p_constant(p):
               | TRUE
               | FALSE
   '''
-  pass
+  p[0] = Literal(p[1])
 
 def p_maybe_newline(p):
   '''maybe_newline : empty
@@ -290,7 +330,7 @@ def p_error(p):
 
 m = MiniScriptLexer()
 m.build()
-'''
+
 import logging
 logging.basicConfig(
     level = logging.DEBUG,
@@ -299,7 +339,6 @@ logging.basicConfig(
     format = "%(filename)10s:%(lineno)4d:%(message)s"
     )
 log = logging.getLogger()
-'''
 yacc.yacc(debug=f_debug)
 
 # Main
@@ -309,7 +348,12 @@ if len(sys.argv) >= 2:
   with open(sys.argv[1], 'r') as src:
    src_lines = ''.join(src.readlines()) 
   #print(src_lines)
-  yacc.parse(src_lines) #, debug=log)
+  if debug:
+    yacc.parse(src_lines, debug=log)
+  else:
+    yacc.parse(src_lines)
+  root.exe(root_scope)
+  #print(root_scope)
 
 else:
   print('usage: ./parser [filename]')

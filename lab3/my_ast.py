@@ -1,19 +1,29 @@
+from __future__ import print_function
+import copy
+import json
+
+
 def is_array(a_dict):
   return not False in [type(k) is int for k in a_dict.keys()]
 
-def _exe_stmts(stmts):
+def _exe_stmts(stmts, scope):
   for s in stmts:
-    s.exe()
+    if s:
+      s.exe(scope)
 
 class Scope:
   def __init__(self, parent=None, **kwargs):
     self.parent = parent
-    self.scope = {}.update(kwargs)
+    self.scope = {}
+    self.scope.update(kwargs)
+
+  def __str__(self):
+    return json.dumps(self.scope, indent=2)
 
   def _find(self, var):
     s = self
     while(s):
-      if s.scope.contains(var):
+      if var in s.scope:
         return (s, s.scope[var])
       s = s.parent
     return None
@@ -43,61 +53,26 @@ class Scope:
       if res:
         res[0].set_var(var, val, field, False)
       else:
-        if field:
+        if field is not None:
           self.scope[var][field] = val
         else:
           self.scope[var] = val
     else:
-      if field:
+      if field is not None:
         self.scope[var][field] = val
       else:
         self.scope[var] = val
 
-class Var:
-  def __init__(self, key, scope, field=None):
-    self.key = key
-    self.field = field
-    self.scope = scope
-
-  def get(self):
-    if self.field:
-      return self.scope.get(key)[field]
-    else:
-      return self.scope.get(key)
-
-class Node:
-  def __init__(self, before, after=None):
-    self.before = before
-    self.after = after
-    self.stmts = []
-    self.init_scope()
-
-  def exe(self):
-    for s in self.stmts:
-      s.exe(self.scope)
-
-  def init_scope(self):
-    if self.before and self.before.scope:
-      self.scope = Scope(parent = self.before.scope) 
-    else:
-      self.scope = Scope()
-
-  def append(statement):
-    self.stmts.append(statement)
-
-  def extend(statements):
-    self.stmts.extend(statements)
-
 class Statement:
-  def exe(self, **kwargs):
+  def exe(self, scope):
     pass
 
 class Block(Statement):
-  def __init__(self, stmts):
+  def __init__(self, stmts=[]):
     self.stmts = stmts
 
-  def exe(self):
-    _exe_stmts(self.stmts)
+  def exe(self, scope):
+    _exe_stmts(self.stmts, scope)
 
 class If(Statement):
   def __init__(self, cond, stmts, soit=None):
@@ -105,31 +80,30 @@ class If(Statement):
     self.soit = soit
     self.stmts = stmts
 
-  def exe(self): 
-    if cond.exe():
-      _exe_stmts(self.stmts)
-    elif soit is not None:
-      self.soit.exe()
+  def exe(self, scope): 
+    if self.cond.exe(scope):
+      _exe_stmts(self.stmts, scope)
+    elif self.soit is not None:
+      self.soit.exe(scope)
 
-class WhileNode(Statement):
+class While(Statement):
   def __init__(self, cond, stmts):
     self.cond = cond
     self.stmts = stmts 
 
-  def exe(self):
-    while cond.exe():
-      _exe_stmts(self.stmts)
+  def exe(self, scope):
+    while self.cond.exe(scope):
+      _exe_stmts(self.stmts, scope)
       
-class DoWhileNode(Node):
+class DoWhile(Statement):
   def __init__(self, cond, stmts):
     self.cond = cond
     self.stmts = stmts 
 
-  def exe(self):
-    _exe_stmts(self.stmts)
-    while cond.exe():
-      _exe_stmts(self.stmts)
-
+  def exe(self, scope):
+    _exe_stmts(self.stmts, scope)
+    while self.cond.exe(scope):
+      _exe_stmts(self.stmts, scope)
 
 class Decl(Statement):
   def __init__(self, var):
@@ -153,83 +127,124 @@ class Assign(Statement):
     self.field = field
 
   def exe(self, scope):
+    field = self.field
+    if field is not None and isinstance(field, Literal):
+      field = field.exe(scope)
     if scope.exists(self.var):
-      scope.set_var(self.var, self.val, self.field)
+      scope.set_var(self.var, self.val, field)
     else:
       #TODO no such variable error
       # (we assign it anyway)
-      scope.set_var(self.var, self.val, self.field)
+      scope.set_var(self.var, self.val, field)
+
+class Var(Statement):
+  def __init__(self, key, field=None):
+    self.key = key
+    self.field = field
+
+  def __str__(self):
+    return 'Var({0})'.format(str(self.key))
+
+  def exe(self, scope):
+    curr_val = scope.get_var(self.key)
+    field = self.field if not isinstance(self.field, Literal) else self.field.exe(scope)
+    if isinstance(curr_val, Literal):
+      curr_val = curr_val.exe(scope)
+    if field is not None:
+      curr_val = curr_val[field]
+      return curr_val.exe(scope) if isinstance(curr_val, Literal) else curr_val
+    else:
+      return curr_val 
+
+class Literal(Statement):
+  def __init__(self, val):
+    self.val = val
+  
+  def __str__(self):
+    return 'Literal({0})'.format(str(self.val))
+
+  def exe(self, scope):
+    return self.val
 
 class Op(Statement):
   def __init__(self, func, *kwargs):
     self.func = func
     self.kwargs = kwargs
 
+  def __str__(self):
+    return 'Op({0} ? {1})'.format(str(self.kwargs[0]), str(self.kwargs[1]))
+
   def exe(self, scope):
-    return self.func(scope, self.kwargs)
+    return self.func(scope, *self.kwargs)
 
 def render_vars(func):
-  def render():
-    if isinstance(lval, Var):
-      lval = lval.get()
-    if isinstance(rval, Var):
-      rval = rval.get()
-    func()
+  def render(scope, *kwargs):
+    new_kwargs = []
+    for x in kwargs:
+      while isinstance(x, Statement):
+        x = x.exe(scope)
+      new_kwargs.append(x)
+    return func(scope, *new_kwargs )
   return render
 
 @render_vars
-def And(lval, rval):
+def Print(scope, *kwargs):
+  out = ''.join('\n' if x == '<br />' else x for x in kwargs)
+  print(out, end='')
+
+@render_vars
+def And(scope, lval, rval):
   return lval and rval
 
 @render_vars
-def Or(lval, rval):
+def Or(scope, lval, rval):
   return lval or rval
 
-def Not(val):
+def Not(scope, val):
   if isinstance(val, Var):
-    val = val.get()
+    val = val.exe(scope)
   return not val
 
 @render_vars
-def GTE(lval, rval):
+def GTE(scope, lval, rval):
   return lval >= rval
 
 @render_vars
-def LTE(lval, rval):
+def LTE(scope, lval, rval):
   return lval <= rval
 
 @render_vars
-def GT(lval, rval):
+def GT(scope, lval, rval):
   return lval > rval
 
 @render_vars
-def LT(lval, rval):
+def LT(scope, lval, rval):
   return lval < rval
 
 @render_vars
-def EQ(lval, rval):
+def EQ(scope, lval, rval):
   return lval == rval
 
 @render_vars
-def NE(lval, rval):
+def NE(scope, lval, rval):
   return lval != rval
 
 @render_vars
-def Add(lval, rval):
+def Add(scope, lval, rval):
   #TODO type check?
   return lval + rval
 
 @render_vars
-def Sub(lval, rval):
+def Sub(scope, lval, rval):
   #TODO type check?
   return lval - rval
 
 @render_vars
-def Mult(lval, rval):
+def Mult(scope, lval, rval):
   #TODO type check?
   return lval * rval
 
 @render_vars
-def Div(lval, rval):
+def Div(scope, lval, rval):
   #TODO type check?
   return lval / rval
