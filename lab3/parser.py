@@ -3,17 +3,28 @@ import sys
 
 from lexer import MiniScriptLexer
 from lib import yacc
+from my_ast import *
 
 f_debug = 0
 tokens = MiniScriptLexer.tokens
 
 curr_arr = []
 curr_obj = {}
+root = Node()
+curr_node = root
+curr_stmts =[]
+
+def next_node(new_node):
+  curr_node.after = new_node
+  curr_stmts = []
+  curr_node = new_node
 
 # grammar here
 def p_script(p):
   'script : START NEWLINE stmts END NEWLINE'
-  pass
+  tmp_stmts = copy.deepcopy(p[3])
+  curr_stmts =[]
+  curr_node.extend(tmp_stmts)
 
 def p_stmts(p):
   '''stmts : empty
@@ -21,13 +32,22 @@ def p_stmts(p):
            | stmts meta_stmt ';' NEWLINE
            | stmts NEWLINE
   '''
-  pass
+  if len(p) > 3:
+    curr_stmts.append(p[2])
+    p[0] = curr_stmts 
+  elif len(p) > 2:
+    p[0] = curr_stmts
+  else:
+    p[0] = curr_stmts
 
 def p_meta_stmt(p):
   '''meta_stmt : stmt
                | meta_stmt ';' stmt
   '''
-  pass
+  if len(p) > 2:
+    p[0] = p[3]
+  else:
+    p[0] = p[1]
 
 def p_stmt(p):
   '''stmt : decl
@@ -45,8 +65,10 @@ def p_stmt(p):
 def p_while_do(p):
   '''while_do :  WHILE '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}'
   '''
-  #TODO while do
-  pass
+  tmp_node = WhileNode(p[3], curr_node)
+  tmp_stmts = copy.deepcopy(p[7])
+  tmp_node.extend(tmp_stmts)
+  next_node(tmp_node)
 
 def p_do_while(p):
   '''do_while : DO '{' NEWLINE stmts NEWLINE '}' NEWLINE WHILE '(' bool_expr ')'
@@ -89,13 +111,11 @@ def p_args(p):
 
 def p_decl(p):
   '''decl : VAR ID'''
-  #TODO add var to sym table
-  pass
+  p[0] = Decl(p[2])
 
 def p_init(p):
   '''init : VAR ID '=' expr'''
-  #TODO add var and val to sym table
-  pass
+  p[0] = Init(p[2], p[3])
 
 def p_assign(p):
   '''assign : ID '=' expr
@@ -103,15 +123,11 @@ def p_assign(p):
             | ID '[' expr ']' '=' expr
   '''
   if p[2] == '=':
-    #TODO var assign
-    pass
+    p[0] = Assign(p[1], p[3])
   if p[2] == '.':
-    #TODO obj assign
-    pass
+    p[0] = Assign(p[1], p[5], field=p[3])
   if p[2] == '[':
-    #TODO arr assign
-    pass
-  pass
+    p[0] = Assign(p[1], p[5], field=p[3])
 
 def p_expr(p):
   '''expr : bool_expr
@@ -125,9 +141,12 @@ def p_arr_expr(p):
               | '[' maybe_newline arr_vals ']'
   '''
   if p[1] == '[' and p[2] == ']':
-    p[0] = []
+    p[0] = {-1:-1} 
   else:
-    p[0] = copy.deepcopy(p[3]) 
+    arr = copy.deepcopy(p[3]) 
+    arr = dict([(i,x) for i,x in enumerate(arr)])
+    arr[-1] = -1
+    p[0] = arr
     curr_arr = []
 
 def p_arr_vals(p):
@@ -135,7 +154,8 @@ def p_arr_vals(p):
               | arr_vals ',' maybe_newline expr maybe_newline
   '''
   if p[2] != ',':
-    p[0] = [p[1]]
+    curr_arr.append(p[1])
+    p[0] = curr_arr
   else:
     curr_arr.append(p[4])
     p[0] = curr_arr
@@ -147,6 +167,7 @@ def p_obj_expr(p):
   if p[1] == '{' and p[2] == '}':
     p[0] = {} 
   else:
+    curr_obj = {}
     p[0] = copy.deepcopy(p[3])
     curr_obj = {}
 
@@ -155,7 +176,8 @@ def p_fields(p):
             | fields ',' maybe_newline ID ':' expr maybe_newline
   '''
   if p[2] != ',':
-    p[0] = { p[1] : p[3] }
+    curr_obj.update({ p[1] : p[3] })
+    p[0] = curr_obj
   else:
     curr_obj.update({ p[4] : p[6] })
     p[0] = curr_obj
@@ -167,8 +189,11 @@ def p_bool_expr(p):
                | NOT rel_expr
   '''
   if len(p) > 2 and p[2] in '&&||!':
-    #TODO bool ops 
-    pass
+    if p[2] in '&&||':
+      func = And if p[2] == '&&' else Or
+      p[0] = Op(func, p[1], p[3])
+    else:
+      p[0] = Op(Not, p[2])
   else:
     p[0] = p[1]
 
@@ -182,7 +207,10 @@ def p_rel_expr(p):
               | rel_expr LT add_expr
   '''
   if len(p) > 2 and p[2] in '==!=>=<=':
-    #TODO rel ops
+    func = EQ if p[2] == '==' else NE if p[2] == '!=' else \
+        GTE if p[2] == '>=' else LTE if p[2] == '<=' else \
+        GT if p[2] == '>' else LT
+    p[0] = Op(func, p[1], p[3])
     pass
   else:
     p[0] = p[1]
@@ -193,8 +221,8 @@ def p_add_expr(p):
               | add_expr '-' mult_expr
   '''
   if len(p) > 2 and p[2] in '+-':
-    #TODO add ops
-    pass
+    func = Add if p[2] == '+' else Sub
+    p[0] = Op(func, p[1], p[3])
   else:
     p[0] = p[1]
 
@@ -204,22 +232,39 @@ def p_mult_expr(p):
                | mult_expr '/' operand
   '''
   if len(p) > 2 and p[2] in '*/':
-    #TODO mult ops
-    pass
+    func = Mult if p[2] == '*' else Div
+    p[0] = Op(func, p[1], p[3])
   else:
     p[0] = p[1]
 
 def p_operand(p):
-  '''operand : ID
-             | INT
-             | STRING_LITERAL
-             | TRUE
-             | FALSE
-             | ID '.' ID
-             | ID '[' bool_expr ']'
+  '''operand : constant 
+             | var_access
              | '(' bool_expr ')'
   '''
-  #TODO ops
+  if len(p) > 2:
+    p[0] = p[2]
+  else:
+    p[0] = p[1]
+
+def p_var_access(p):
+  '''var_access : ID
+                | ID '.' ID
+                | ID '[' bool_expr ']'
+  '''
+  if len(p)>4:
+    p[0] = Var(p[1], curr_node.scope, p[3])
+  elif len(p)>2:
+    p[0] = Var(p[1], curr_node.scope, p[3])
+  else:
+    p[0] = Var(p[1], curr_node.scope)
+
+def p_constant(p):
+  '''constant : INT
+              | STRING_LITERAL
+              | TRUE
+              | FALSE
+  '''
   pass
 
 def p_maybe_newline(p):
