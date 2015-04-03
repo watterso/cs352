@@ -13,6 +13,7 @@ curr_obj = {}
 root = Node()
 curr_node = root
 curr_stmts =[]
+stack = []
 
 def next_node(new_node):
   curr_node.after = new_node
@@ -62,39 +63,46 @@ def p_stmt(p):
   '''
   pass
 
+def p_push_stmts(p):
+  'push : '
+  stack.append(copy.deepcopy(curr_stmts))
+  curr_stmts = []
+
+def pop_stmts():
+  new_stmts = stack.pop()
+  curr_stmts = new_stmts if new_stmts is not None else []
+
 def p_while_do(p):
-  '''while_do :  WHILE '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}'
+  '''while_do :  WHILE '(' bool_expr ')' '{' NEWLINE stmts push_stmts NEWLINE '}'
   '''
-  tmp_node = WhileNode(p[3], curr_node)
-  tmp_stmts = copy.deepcopy(p[7])
-  tmp_node.extend(tmp_stmts)
-  next_node(tmp_node)
+  p[0] = While(p[3], curr_stmts)
+  pop_stmts()
 
 def p_do_while(p):
-  '''do_while : DO '{' NEWLINE stmts NEWLINE '}' NEWLINE WHILE '(' bool_expr ')'
+  '''do_while : DO '{' NEWLINE stmts push_stmts NEWLINE '}' NEWLINE WHILE '(' bool_expr ')'
   '''
-  #TODO do while
-  pass
+  p[0] = DoWhile(p[11], curr_stmts)
+  pop_stmts()
 
 def p_if_block(p):
-  '''if_block : I_COND '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}'
+  '''if_block : I_COND '(' bool_expr ')' '{' NEWLINE stmts push_stmts NEWLINE '}'
   '''
-  #TODO if
-  pass
+  p[0] = If(p[3], curr_stmts)
+  pop_stmts()
 
 def p_if_else(p):
-  '''if_else : if_block E_COND I_COND '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}'
-             | if_else E_COND I_COND '(' bool_expr ')' '{' NEWLINE stmts NEWLINE '}'
+  '''if_else : if_block E_COND I_COND '(' bool_expr ')' '{' NEWLINE stmts push_stmts NEWLINE '}'
+             | if_else E_COND I_COND '(' bool_expr ')' '{' NEWLINE stmts push_stmts NEWLINE '}'
   '''
-  #TODO elseifs
-  pass
+  p[1].soit = If(p[5], curr_stmts)
+  p[0] = p[1]
 
 def p_else(p):
   '''else : if_block E_COND '{' NEWLINE stmts NEWLINE '}'
           | if_else E_COND '{' NEWLINE stmts NEWLINE '}'
   '''
-  #TODO elses
-  pass
+  p[1].soit = Block(curr_stmts)
+  p[0] = p[1]
 
 
 def p_print(p):

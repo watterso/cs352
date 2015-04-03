@@ -1,6 +1,10 @@
 def is_array(a_dict):
   return not False in [type(k) is int for k in a_dict.keys()]
 
+def _exe_stmts(stmts):
+  for s in stmts:
+    s.exe()
+
 class Scope:
   def __init__(self, parent=None, **kwargs):
     self.parent = parent
@@ -84,41 +88,48 @@ class Node:
   def extend(statements):
     self.stmts.extend(statements)
 
-class IfNode(Node):
-  def __init__(self, cond, before, soit=None, after=None):
-    super(before, after)
+class Statement:
+  def exe(self, **kwargs):
+    pass
+
+class Block(Statement):
+  def __init__(self, stmts):
+    self.stmts = stmts
+
+  def exe(self):
+    _exe_stmts(self.stmts)
+
+class If(Statement):
+  def __init__(self, cond, stmts, soit=None):
     self.cond = cond
     self.soit = soit
+    self.stmts = stmts
 
   def exe(self): 
     if cond.exe():
-      super(IfNode, self).exe()
-    else:
+      _exe_stmts(self.stmts)
+    elif soit is not None:
       self.soit.exe()
 
-class WhileNode(Node):
-  def __init__(self, cond, before, after=None):
-    super(before, after)
+class WhileNode(Statement):
+  def __init__(self, cond, stmts):
     self.cond = cond
-    self.soit = soit
+    self.stmts = stmts 
 
   def exe(self):
     while cond.exe():
-      super(IfNode, self).exe()
-
+      _exe_stmts(self.stmts)
+      
 class DoWhileNode(Node):
-  def __init__(self, cond, before, after=None):
-    super(before, after)
+  def __init__(self, cond, stmts):
     self.cond = cond
-    self.soit = soit
+    self.stmts = stmts 
 
   def exe(self):
-    super(IfNode, self).exe()
+    _exe_stmts(self.stmts)
     while cond.exe():
-      super(IfNode, self).exe()
+      _exe_stmts(self.stmts)
 
-class Statement:
-  pass
 
 class Decl(Statement):
   def __init__(self, var):
