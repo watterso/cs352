@@ -13,6 +13,8 @@ class MiniScriptLexer:
     'while': 'WHILE',
     'do': 'DO',
     'var': 'VAR',
+    'break' : 'BREAK',
+    'continue' : 'CONT'
   }
 
   # defined tokens

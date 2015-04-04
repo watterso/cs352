@@ -190,7 +190,10 @@ class Literal(Statement):
     self.val = val
   
   def __str__(self):
-    return 'Literal<{0}>'.format(str(self.val))
+    if type(self.val) is str:
+      return 'Literal<\'{0}\'>'.format(str(self.val))
+    else:
+      return 'Literal<{0}>'.format(str(self.val))
 
   def exe(self, scope):
     return self.val
@@ -202,10 +205,14 @@ class Op(Statement):
 
   def __str__(self):
     kwargs = list(self.kwargs)
-    if len(kwargs) > 1:
-      return 'Op<{0} {2} {1}>'.format(kwargs[0], kwargs[1], self._operator_string())
+    if self.func is not Print:
+      if len(kwargs) > 1:
+        return 'Op<{0} {2} {1}>'.format(kwargs[0], kwargs[1], self._operator_string())
+      else:
+        return 'Op<!{0}>'.format(self.kwargs[0])
     else:
-      return 'Op<!{0}>'.format(self.kwargs[0])
+      fill = ', '.join(map(str,kwargs))
+      return 'Op<Print({0})>'.format(fill)
 
   def _operator_string(self):
     f = self.func
