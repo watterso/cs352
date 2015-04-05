@@ -7,6 +7,16 @@ from lexer import MiniScriptLexer
 from lib import yacc
 from my_ast import *
 
+def only_lits(stmt):
+  if isinstance(stmt, Literal):
+    return True
+  else:
+    #Should only be an op
+    ret = []
+    for k in stmt.kwargs:
+      ret.append(only_lits(k))
+    return False not in ret
+
 class MiniScriptParser:
   def __init__(self, debug=0):
     self.debug = debug
@@ -124,7 +134,7 @@ class MiniScriptParser:
   def p_do_while(self, p):
     '''do_while : DO '{' NEWLINE push_stmts stmts '}' NEWLINE WHILE '(' doish bool_expr ')'
     '''
-    p[10].lineno = p.lineno(1)
+    p[10].lineno = p.lineno(8)
     p[10].cond = Condition(p[11])
     p[0] = p[10]
 
@@ -220,8 +230,12 @@ class MiniScriptParser:
     else:
       arr = copy.deepcopy(p[3]) 
       arr = dict([(i,x) for i,x in enumerate(arr)])
-      arr[-1] = -1
-      p[0] = arr
+      arr_w_lit_eval = {}
+      for x in arr.keys():
+        if only_lits(arr[x]):
+          arr_w_lit_eval[x] = arr[x].exe(None)
+      arr_w_lit_eval[-1] = -1
+      p[0] = arr_w_lit_eval
       self.curr_arr = []
 
   def p_arr_vals(self, p):
@@ -242,7 +256,12 @@ class MiniScriptParser:
     if p[1] == '{' and p[2] == '}':
       p[0] = {} 
     else:
-      p[0] = copy.deepcopy(p[3])
+      dic = copy.deepcopy(p[3])
+      dic_w_lit_eval = {}
+      for x in dic.keys():
+        if only_lits(dic[x]):
+          dic_w_lit_eval[x] = dic[x].exe(None)
+      p[0] = dic     
       self.curr_obj = {}
 
   def p_fields(self, p):
