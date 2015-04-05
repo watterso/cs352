@@ -39,10 +39,15 @@ class MiniScriptParser:
       return None
     
   def p_script(self, p):
-    'script : START NEWLINE stmts END NEWLINE'
+    'script : newlines START NEWLINE stmts END newlines'
     #dont do normal stack handling because script only happens once
     self.root.stmts = self.curr_stmts
 
+  def p_newlines(sefl, p):
+    '''newlines : empty
+                | newlines NEWLINE
+    '''
+    pass
   def p_stmts(self, p):
     '''stmts : empty
              | stmts meta_stmt NEWLINE
@@ -374,12 +379,6 @@ class MiniScriptParser:
   def p_maybe_newline(self, p):
     '''maybe_newline : empty
                      | maybe_newline NEWLINE
-    '''
-    pass
-
-  def p_maybe_semi(self, p):
-    '''maybe_semi : empty
-                     | ';'
     '''
     pass
 

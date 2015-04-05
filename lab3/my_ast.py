@@ -164,6 +164,7 @@ class Condition(Statement):
       spec_err(COND_UNKNOWN)
       raise ConditionUnknown()
     else:
+      cond = render_val(scope, cond)
       return cond
 
 class If(Statement):
@@ -217,12 +218,24 @@ class DoWhile(Statement):
     return 'DoWhile<{0}>'.format(self.cond)
 
   def exe(self, scope):
-    _exe_stmts(self.stmts, scope)
+    do_while = True
     try:
-      while self.cond.exe(scope):
-        _exe_stmts(self.stmts, scope)
-    except ConditionUnknown:
-      num_print_err(self)
+      _exe_stmts(self.stmts, scope)
+    except Break:
+      do_while = False
+    except Continue:
+      pass
+    if do_while:
+      try:
+        while self.cond.exe(scope):
+          try:
+            _exe_stmts(self.stmts, scope)
+          except Break:
+            break
+          except Continue:
+            continue
+      except ConditionUnknown:
+        num_print_err(self)
 
 class Decl(Statement):
   def __init__(self, var, lineno):
@@ -274,20 +287,40 @@ class Assign(Statement):
     if scope.exists(self.var):
       typ = type(curr_val)
       if typ is dict:
-        f_typ = type(field)
-        if f_typ not in [int, str]:
-          #Field Type VIOL
-          spec_err(TYPE_VIOL)
-          num_print_err(self)
-        elif f_typ is str and is_array(curr_val):
-          #Access array with obj key ERROR
-          spec_err(TYPE_VIOL)
-          num_print_err(self)
-        else:
-          #success on dict or array
-          comp = pretty_var(self.var, curr_val, field) 
-          written[comp] = True
+        if field is None:
+          # arr or obj getting redefined
+          for k in curr_val.keys():
+            if k == -1:
+              continue
+            #all keys unwritten
+            comp = pretty_var(self.var, curr_val, k) 
+            written[comp] = False 
+
+          written[self.var] = True
           scope.set_var(self.var, val, field)
+          if type(val) is dict:
+            for k in curr_val.keys():
+              if k == -1:
+                continue
+              #all keys written
+              comp = pretty_var(self.var, val, k) 
+              written[comp] = True 
+
+        else:
+          f_typ = type(field)
+          if f_typ not in [int, str]:
+            #Field Type VIOL
+            spec_err(TYPE_VIOL)
+            num_print_err(self)
+          elif f_typ is str and is_array(curr_val):
+            #Access array with obj key ERROR
+            spec_err(TYPE_VIOL)
+            num_print_err(self)
+          else:
+            #success on dict or array
+            comp = pretty_var(self.var, curr_val, field) 
+            written[comp] = True
+            scope.set_var(self.var, val, field)
       else:
         if field is not None:
           #treating var as dict
@@ -471,12 +504,12 @@ def type_check(args, same=True):
 @render_vars
 @type_check([int,str,bool], False)
 def And(scope, lval, rval):
-  return lval and rval
+  return bool(lval) and bool(rval)
 
 @render_vars
 @type_check([int,str,bool], False)
 def Or(scope, lval, rval):
-  return lval or rval
+  return bool(lval) or bool(rval)
 
 @render_vars
 def Not(scope, val):

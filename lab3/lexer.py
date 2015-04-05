@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 
 import lib.lex as lex
@@ -77,8 +78,7 @@ class MiniScriptLexer:
     return t
 
   def t_error(self, t):
-    print(t)
-    print('syntax error\n')
+    print('syntax error', file=sys.stderr)
     sys.exit(0)
   
   def build(self,**kwargs):
