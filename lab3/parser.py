@@ -120,7 +120,7 @@ class MiniScriptParser:
     '''do_while : DO '{' NEWLINE push_stmts stmts '}' NEWLINE WHILE '(' doish bool_expr ')'
     '''
     p[10].lineno = p.lineno(1)
-    p[10].cond = p[11]
+    p[10].cond = Condition(p[11])
     p[0] = p[10]
 
   def p_if_block(self, p):
@@ -374,6 +374,12 @@ class MiniScriptParser:
   def p_maybe_newline(self, p):
     '''maybe_newline : empty
                      | maybe_newline NEWLINE
+    '''
+    pass
+
+  def p_maybe_semi(self, p):
+    '''maybe_semi : empty
+                     | ';'
     '''
     pass
 

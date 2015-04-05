@@ -11,6 +11,9 @@ VALUE_ERR = '{0} has no value'
 err_str = None
 err_printed = False
 
+reported = []
+written = {}
+
 def spec_err(err):
   global err_printed
   global err_str
@@ -18,14 +21,18 @@ def spec_err(err):
     err_printed = False
     err_str = err
 
-def num_print_err(lineno):
+def num_print_err(stmt):
   global err_printed
   global err_str
-  if err_str is not None and not err_printed:
+  global reported
+  lineno = stmt.lineno
+  if err_str is not None and not err_printed and \
+      stmt not in reported:
     pre = ERR_PREFIX.format(lineno)
     final = '{0}{1}'.format(pre, err_str)
     print(final, file=sys.stderr)
     err_printed = True
+    reported.append(stmt)
 
 def my_str(val):
   typ = type(val)
@@ -149,18 +156,19 @@ class Condition(Statement):
     self.cond = cond
 
   def __str__(self):
-    return str(self.cond)
+    return 'Cond({0})'.format(self.cond)
   
   def exe(self, scope):
     cond = self.cond.exe(scope)
     if cond is None:
+      spec_err(COND_UNKNOWN)
       raise ConditionUnknown()
     else:
       return cond
 
 class If(Statement):
   def __init__(self, cond, stmts, lineno,soit=None):
-    self.cond = cond
+    self.cond = Condition(cond)
     self.soit = soit
     self.stmts = stmts
     self.lineno = lineno
@@ -175,12 +183,11 @@ class If(Statement):
       elif self.soit is not None:
         self.soit.exe(scope)
     except ConditionUnknown:
-      #TODO report condtion unknown
-      pass
+      num_print_err(self)
 
 class While(Statement):
   def __init__(self, cond, stmts, lineno):
-    self.cond = cond
+    self.cond = Condition(cond)
     self.stmts = stmts 
     self.lineno = lineno
 
@@ -197,12 +204,12 @@ class While(Statement):
         except Continue:
           continue
     except ConditionUnknown:
-      #TODO report condtion unknown
+      num_print_err(self)
       pass
       
 class DoWhile(Statement):
   def __init__(self, cond, stmts, lineno):
-    self.cond = cond
+    self.cond = Condition(cond)
     self.stmts = stmts 
     self.lineno = lineno
 
@@ -215,8 +222,7 @@ class DoWhile(Statement):
       while self.cond.exe(scope):
         _exe_stmts(self.stmts, scope)
     except ConditionUnknown:
-      #TODO report condtion unknown
-      pass
+      num_print_err(self)
 
 class Decl(Statement):
   def __init__(self, var, lineno):
@@ -227,6 +233,8 @@ class Decl(Statement):
     return 'Decl<{0}>'.format(self.var)
 
   def exe(self, scope):
+    global written
+    written[self.var] = False 
     scope.set_var(self.var, None, recurse=False)
 
 class Init(Statement):
@@ -239,7 +247,9 @@ class Init(Statement):
     return 'Init<{0},{1}>'.format(self.var, self.val)
 
   def exe(self, scope):
+    global written
     r_val = render_val(scope, self.val)
+    written[self.var] = True 
     scope.set_var(self.var, r_val, recurse=False)
 
 class Assign(Statement):
@@ -256,6 +266,7 @@ class Assign(Statement):
       return 'Assign<{0}[{1}],{2}>'.format(self.var, self.field, self.val)
 
   def exe(self, scope):
+    global written
     field = render_val(scope, self.field)
     val = render_val(scope, self.val)
     curr_val = scope.get_var(self.var)
@@ -267,25 +278,30 @@ class Assign(Statement):
         if f_typ not in [int, str]:
           #Field Type VIOL
           spec_err(TYPE_VIOL)
-          num_print_err(self.lineno)
+          num_print_err(self)
         elif f_typ is str and is_array(curr_val):
           #Access array with obj key ERROR
           spec_err(TYPE_VIOL)
-          num_print_err(self.lineno)
+          num_print_err(self)
         else:
+          #success on dict or array
+          comp = pretty_var(self.var, curr_val, field) 
+          written[comp] = True
           scope.set_var(self.var, val, field)
       else:
         if field is not None:
           #treating var as dict
           spec_err(TYPE_VIOL)
-          num_print_err(self.lineno)
+          num_print_err(self)
         else:
+          #success on primitive
+          written[self.var] = True
           scope.set_var(self.var, val, field)
     else:
       # variable not declared error
       # (we assign it anyway)
       spec_err(VAR_UNDECL.format(self.var))
-      num_print_err(self.lineno)
+      num_print_err(self)
       scope.set_var(self.var, val, field)
 
 class Var(Statement):
@@ -301,13 +317,15 @@ class Var(Statement):
       return 'Var<{0}[{1}]>'.format(self.key, self.field)
 
   def exe(self, scope):
+    global written
     curr_val = scope.get_var(self.key)
     curr_val = render_val(scope, curr_val)
     r_field = render_val(scope, self.field)
     if curr_val is None:
       #var has no value
-      spec_err(VALUE_ERR.format(self.key))
-      num_print_err(self.lineno)
+      if self.key not in written or not written[self.key]:      
+        spec_err(VALUE_ERR.format(self.key))
+        num_print_err(self)
       return None
     else:  
       if self.field is not None:
@@ -315,21 +333,22 @@ class Var(Statement):
           #bad field val
           comp = pretty_var(self.key, curr_val, r_field) 
           spec_err(VAR_UNDECL.format(comp))
-          num_print_err(self.lineno)
+          num_print_err(self)
           return None
         elif type(curr_val) not in [dict, list]:
           spec_err(TYPE_VIOL)
-          num_print_err(self.lineno)
+          num_print_err(self)
         elif type(r_field) is int and not is_array(curr_val) or \
             type(r_field) is str and is_array(curr_val) or \
             type(r_field) not in [int, str]:
           spec_err(TYPE_VIOL)
-          num_print_err(self.lineno)
+          num_print_err(self)
         elif r_field not in curr_val:
           #var[field] has no value
           comp = pretty_var(self.key, curr_val, r_field) 
-          spec_err(VALUE_ERR.format(comp))
-          num_print_err(self.lineno)
+          if comp not in written or not written[comp]:
+            spec_err(VALUE_ERR.format(comp))
+            num_print_err(self)
           return None
         else:
           curr_val = curr_val[r_field]
@@ -396,7 +415,7 @@ class Op(Statement):
     #print('exec\'ing : '+str(self))
     ret = self.func(scope, *self.kwargs)
     if ret is None:
-      num_print_err(self.lineno)
+      num_print_err(self)
     else:
       return ret
 
@@ -440,6 +459,8 @@ def type_check(args, same=True):
           #type violation
           spec_err(TYPE_VIOL)
           return None
+      elif lval is None or rval is None:
+        return None
       else:
         #type violation 
         spec_err(TYPE_VIOL)
