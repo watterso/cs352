@@ -313,13 +313,21 @@ class Var(Statement):
       if self.field is not None:
         if r_field is None:
           #bad field val
-          comp = pretty_var(self.key, curr_val, self.field) 
+          comp = pretty_var(self.key, curr_val, r_field) 
           spec_err(VAR_UNDECL.format(comp))
           num_print_err(self.lineno)
           return None
+        elif type(curr_val) not in [dict, list]:
+          spec_err(TYPE_VIOL)
+          num_print_err(self.lineno)
+        elif type(r_field) is int and not is_array(curr_val) or \
+            type(r_field) is str and is_array(curr_val) or \
+            type(r_field) not in [int, str]:
+          spec_err(TYPE_VIOL)
+          num_print_err(self.lineno)
         elif r_field not in curr_val:
           #var[field] has no value
-          comp = pretty_var(self.key, curr_val, self.field) 
+          comp = pretty_var(self.key, curr_val, r_field) 
           spec_err(VALUE_ERR.format(comp))
           num_print_err(self.lineno)
           return None
@@ -385,6 +393,7 @@ class Op(Statement):
       return '?'
 
   def exe(self, scope):
+    #print('exec\'ing : '+str(self))
     ret = self.func(scope, *self.kwargs)
     if ret is None:
       num_print_err(self.lineno)
@@ -402,8 +411,16 @@ def render_vars(func):
     return func(scope, *new_kwargs)
   return render
 
+def cripple_print(k):
+  if type(k) in [list, dict]:
+    spec_err(TYPE_VIOL)
+    return None
+  else:
+    return k
+
 @render_vars
 def Print(scope, *kwargs):
+  kwargs = map(cripple_print, kwargs)
   arr = ['\n' if my_str(x) == '<br />' else my_str(x) for x in kwargs]
   out = ''.join(arr)
   print(out, end='')

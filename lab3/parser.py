@@ -255,17 +255,17 @@ class MiniScriptParser:
     '''bool_expr : rel_expr
                  | bool_expr AND rel_expr
                  | bool_expr OR rel_expr
-                 | NOT rel_expr
     '''
     if len(p) > 3 and p[2] in '&&||':
       func = And if p[2] == '&&' else Or
-      p[0] = Op(func, p.lineno(1), p[1], p[3])
+      lineno = p.lineno(1)
+      if isinstance(p[1], Statement):
+        lineno = p[1].lineno
+      if isinstance(p[2], Statement):
+        lineno = p[2].lineno
+      p[0] = Op(func, lineno, p[1], p[3])
       if self.debug:
         print('Op: {0} {1} {2}'.format(p[1], p[2], p[3]))
-    elif p[1] == '!':
-      p[0] = Op(Not, p.lineno(1), p[2])
-      if self.debug:
-        print('Op: !{0}'.format(p[2]))
     else:
       p[0] = p[1]
 
@@ -282,7 +282,12 @@ class MiniScriptParser:
       func = EQ if p[2] == '==' else NE if p[2] == '!=' else \
           GTE if p[2] == '>=' else LTE if p[2] == '<=' else \
           GT if p[2] == '>' else LT
-      p[0] = Op(func, p.lineno(1), p[1], p[3])
+      lineno = p.lineno(1)
+      if isinstance(p[1], Statement):
+        lineno = p[1].lineno
+      if isinstance(p[2], Statement):
+        lineno = p[2].lineno
+      p[0] = Op(func, lineno, p[1], p[3])
       if self.debug:
         print('Op: {0} {1} {2}'.format(p[1], p[2], p[3]))
     else:
@@ -295,7 +300,12 @@ class MiniScriptParser:
     '''
     if len(p) > 2 and p[2] in '+-':
       func = Add if p[2] == '+' else Sub
-      p[0] = Op(func, p.lineno(1), p[1], p[3])
+      lineno = p.lineno(1)
+      if isinstance(p[1], Statement):
+        lineno = p[1].lineno
+      if isinstance(p[2], Statement):
+        lineno = p[2].lineno
+      p[0] = Op(func, lineno, p[1], p[3])
     else:
       p[0] = p[1]
 
@@ -306,7 +316,12 @@ class MiniScriptParser:
     '''
     if len(p) > 2 and p[2] in '*/':
       func = Mult if p[2] == '*' else Div
-      p[0] = Op(func, p.lineno(1), p[1], p[3])
+      lineno = p.lineno(1)
+      if isinstance(p[1], Statement):
+        lineno = p[1].lineno
+      if isinstance(p[2], Statement):
+        lineno = p[2].lineno
+      p[0] = Op(func, lineno, p[1], p[3])
     else:
       p[0] = p[1]
 
@@ -314,9 +329,25 @@ class MiniScriptParser:
     '''operand : constant 
                | var_access
                | '(' bool_expr ')'
+               | NOT '(' bool_expr ')'
+               | NOT var_access
     '''
-    if len(p) > 2:
+    if p[1] == '(':
       p[0] = p[2]
+    elif p[1] == '!':
+      lineno = p.lineno(1)
+      if p[2] == '(':
+        if isinstance(p[3], Statement):
+          lineno = p[3].lineno
+        p[0] = Op(Not, lineno, p[3])
+        if self.debug:
+          print('Op: !{0}'.format(p[3]))
+      else:
+        if isinstance(p[2], Statement):
+          lineno = p[2].lineno
+        p[0] = Op(Not, lineno, p[2])
+        if self.debug:
+          print('Op: !{0}'.format(p[2]))
     else:
       p[0] = p[1]
 
