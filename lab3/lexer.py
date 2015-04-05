@@ -73,7 +73,7 @@ class MiniScriptLexer:
 
   def t_NEWLINE(self, t):
     r'\n'
-    t.lexer.lineno += 1
+    t.lexer.lineno = t.lexer.lineno + 1
     return t
 
   def t_error(self, t):
