@@ -194,9 +194,9 @@ class MiniScriptParser:
       print('Init: {0} = {1}'.format(p[2], p[4]))
 
   def p_assign(self, p):
-    '''assign : ID '=' expr
-              | ID '.' ID '=' expr
-              | ID '[' expr ']' '=' expr
+    '''assign : ID '=' bool_expr 
+              | ID '.' ID '=' bool_expr
+              | ID '[' expr ']' '=' bool_expr
     '''
     if p[2] == '=':
       p[0] = Assign(p[1], p[3], p.lineno(1))
