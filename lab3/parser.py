@@ -62,6 +62,8 @@ class MiniScriptParser:
     '''stmts : empty
              | stmts meta_stmt NEWLINE
              | stmts meta_stmt ';' NEWLINE
+             | stmts do_while ';' NEWLINE
+             | stmts do_while NEWLINE
              | stmts NEWLINE
     '''
     if len(p) > 3:
@@ -92,7 +94,6 @@ class MiniScriptParser:
             | if_block
             | if_else
             | else
-            | do_while
             | while_do
             | brake
             | continue
@@ -136,7 +137,7 @@ class MiniScriptParser:
     '''
     p[10].lineno = p.lineno(8)
     p[10].cond = Condition(p[11])
-    p[0] = p[10]
+    p[0] = [p[10]]
 
   def p_if_block(self, p):
     '''if_block : I_COND '(' bool_expr ')' '{' NEWLINE push_stmts stmts '}'
