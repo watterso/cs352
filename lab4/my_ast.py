@@ -578,15 +578,15 @@ def type_check(args, same=True):
     return check 
   return la
 
-@render_vars
-@type_check([int,str,bool], False)
-def And(scope, lval, rval):
-  return bool(lval) and bool(rval)
 
-@render_vars
-@type_check([int,str,bool], False)
+#TODO TODO TODO type check And and Or
+
+def And(scope, lval, rval):
+  #render_val instead of decorator for short circuit
+  return bool(render_val(scope, lval)) and bool(render_val(scope, rval))
+
 def Or(scope, lval, rval):
-  return bool(lval) or bool(rval)
+  return bool(render_val(scope, lval)) or bool(render_val(scope, rval))
 
 @render_vars
 def Not(scope, val):
