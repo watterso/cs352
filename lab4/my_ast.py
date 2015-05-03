@@ -194,6 +194,20 @@ class Condition(Statement):
       cond = render_val(scope, cond)
       return cond
 
+class Assert(Statement):
+  def __init__(self, expr):
+    self.expr = expr
+
+  def __str__(self):
+    return 'Assert<{0}>'.format(self.expr)
+
+  def exe(self, scope):
+    ret = self.expr.exe(scope)
+    if not ret:
+      #TODO backward slice
+      pass
+
+
 class RetVal(Statement, Exception):
   def __init__(self, expr):
     self.expr = expr
@@ -579,14 +593,35 @@ def type_check(args, same=True):
   return la
 
 
-#TODO TODO TODO type check And and Or
+def check_type(val, types):
+  #import ipdb; ipdb.set_trace()
+  if type(val) not in types:
+    #type violation
+    spec_err(TYPE_VIOL)
+    return None
+  else:
+    return val
+    
 
 def And(scope, lval, rval):
   #render_val instead of decorator for short circuit
-  return bool(render_val(scope, lval)) and bool(render_val(scope, rval))
+  types = [int,str,bool]
+  lbool = bool(check_type(render_val(scope, lval), types))
+  if not lbool:
+    return False
+  else:
+    rbool = bool(check_type(render_val(scope, rval), types)) 
+    return lbool and rbool
 
 def Or(scope, lval, rval):
-  return bool(render_val(scope, lval)) or bool(render_val(scope, rval))
+  #render_val instead of decorator for short circuit
+  types = [int,str,bool]
+  lbool = bool(check_type(render_val(scope, lval), types))
+  if lbool:
+    return True
+  else:
+    rbool = bool(check_type(render_val(scope, rval), types)) 
+    return lbool or rbool
 
 @render_vars
 def Not(scope, val):

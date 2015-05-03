@@ -94,6 +94,7 @@ class MiniScriptParser:
             | assign
             | print
             | func_call
+            | assert 
             | returny
             | func
             | if_block
@@ -165,6 +166,10 @@ class MiniScriptParser:
     p[1].soit = Block(self.curr_stmts)
     p[0] = p[1]
     self.pop_stmts()
+
+  def p_assert(self, p):
+    ''' assert : ASS '(' bool_expr ')' '''
+    p[0] = Assert(p[3], p.lineno(1))
 
 
   def p_print(self, p):

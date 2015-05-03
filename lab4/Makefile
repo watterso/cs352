@@ -10,3 +10,7 @@ clean:
 .PHONY: test
 test: 
 	ruby ./test/test.rb
+
+.PHONY: test1
+test1:
+	cd cs352-test && python main.py ../parser

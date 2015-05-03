@@ -16,7 +16,8 @@ class MiniScriptLexer:
     'var': 'VAR',
     'break' : 'BREAK',
     'continue' : 'CONT',
-    'return' : 'RET'
+    'return' : 'RET',
+    'assert' : 'ASS'
   }
 
   # defined tokens
